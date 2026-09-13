@@ -1,0 +1,133 @@
+{
+  "$schemaVersion": 1,
+  "_comment": [
+    "Every distance, speed, and duration threshold used by location features. These were tuned against real GPS",
+    "traces in the original app, so the inline justifications matter as much as the numbers -- do not 'clean them",
+    "up' to round values without re-testing against real traces.",
+    "",
+    "Units are explicit in every key name: _m is metres, _ms is milliseconds, _mps is metres per second."
+  ],
+
+  "earthRadiusM": 6371000,
+
+  "proximity": {
+    "togetherThreshold_m": {
+      "value": 100,
+      "why": "Below this two members are rendered as 'Together' rather than showing a distance. Roughly the width of a building, so being in the same cafe reads as together despite GPS scatter."
+    },
+    "placeRadius_m": {
+      "value": 150,
+      "why": "How close counts as being 'at' a saved place. Matches the geofence entry radius so 'at a place' and 'inside the fence' can never disagree."
+    }
+  },
+
+  "geofence": {
+    "enterRadius_m": {
+      "value": 150,
+      "why": "Entry radius for a saved place."
+    },
+    "exitRadius_m": {
+      "value": 220,
+      "why": "Exit radius is deliberately larger than entry. This hysteresis gap stops a member sitting near the boundary from firing an endless arrived/left alert loop as GPS wanders."
+    }
+  },
+
+  "activityBands": {
+    "_comment": "Speed to human label. Phones do not expose OS activity recognition at this layer, so speed is the only available signal.",
+    "stationaryBelow_mps": { "value": 0.6, "why": "Under about 2 km/h -- standing still, or GPS noise." },
+    "walkingBelow_mps": { "value": 1.6, "why": "About 2 to 6 km/h -- walking pace." },
+    "cyclingBelow_mps": { "value": 3.0, "why": "About 6 to 11 km/h -- cycling or a brisk jog." },
+    "drivingThreshold_mps": { "value": 3.0, "why": "Above about 11 km/h is treated as driving." }
+  },
+
+  "tripReconstruction": {
+    "_comment": "The pipeline that turns a raw ping series into the one journey worth drawing. Order matters: teleports are removed before trip detection, otherwise a single bad fix invents a journey the member never made.",
+
+    "maxPlausibleSpeed_mps": {
+      "value": 35,
+      "why": "About 126 km/h. A fix implying faster ground travel than this is a bad GPS lock, not movement. Paired with a minimum jump distance so slow-speed noise is not over-filtered."
+    },
+    "teleportMinJump_m": {
+      "value": 80,
+      "why": "A fix must be both implausibly fast AND this far away before it is discarded, so tiny jitter at a standstill is left alone."
+    },
+    "spikeNeighbourDist_m": {
+      "value": 50,
+      "why": "Threshold for detecting a V-spike: a fix that jumped at least this far from both temporal neighbours."
+    },
+    "spikeCollapseRatio": {
+      "value": 0.5,
+      "why": "A V-spike is confirmed when the two neighbours are closer to each other than half the distance to the suspect point -- the location darted away for one fix and snapped straight back."
+    },
+    "poorAccuracyCutoff_m": {
+      "value": 50,
+      "why": "Interior fixes with a worse accuracy radius than this are dropped before smoothing. First and last fixes are always kept so the origin pin and destination stay exactly where the member was."
+    },
+    "tripGap_ms": {
+      "value": 720000,
+      "why": "12 minutes. A gap longer than this means tracking paused, which ends the run."
+    },
+    "stopRadius_m": {
+      "value": 80,
+      "why": "A member who stays within this radius for stopDuration_ms has arrived somewhere, which is a trip boundary."
+    },
+    "stopDuration_ms": {
+      "value": 300000,
+      "why": "5 minutes. Long enough to ignore red lights and pick-up stops, short enough to catch a real arrival."
+    },
+    "arrivalRadius_m": {
+      "value": 80,
+      "why": "Once within this distance of the final fix, the member has arrived. Later fixes are a stationary tail and are trimmed off the drawn route so it does not smear into a dot cluster."
+    },
+    "minTripDistance_m": {
+      "value": 80,
+      "why": "Minimum path length before a run counts as a trip at all."
+    },
+    "minNetDisplacement_m": {
+      "value": 60,
+      "why": "A run must ALSO have reached this far from its start, by net displacement or by max distance reached. Stationary jitter accumulates path length without ever leaving the spot, so path length alone would draw false trips; requiring real displacement filters those out while still counting a round walk that returns home."
+    },
+    "drivingMaxSpeed_mps": {
+      "value": 7,
+      "why": "A peak above this in the run means driving, not cycling."
+    },
+    "drivingAvgSpeed_mps": {
+      "value": 6,
+      "why": "A sustained average above this also means driving."
+    },
+    "smoothingHalfWindow": {
+      "value": 4,
+      "why": "Moving average over a 9-point window, clamped at the edges. Endpoints are kept exact. Smoothing changes only how the line looks -- all detection metrics are computed from the raw points beforehand."
+    },
+    "routerWaypointGap_m": {
+      "value": 250,
+      "why": "Spacing when reducing a route to waypoints for a road-snapping router. Feeding every raw fix makes the router U-turn onto noisy mid-block points and draw the same road twice; routing only origin to destination collapses real revisits into a single pass. This spacing follows the actual path while staying sparse enough to avoid both failures."
+    }
+  },
+
+  "presence": {
+    "onlineThreshold_ms": {
+      "value": 600000,
+      "why": "10 minutes. A member is online when their most recent ping is newer than this. Evaluated server-side against one clock so every viewer sees the same online set regardless of device clock skew."
+    }
+  },
+
+  "tracking": {
+    "minMovementToPing_m": {
+      "value": 25,
+      "why": "The device only writes a new ping after moving at least this far, which keeps the highest-volume table from filling with duplicate fixes while a member sits still."
+    },
+    "heartbeatInterval_ms": {
+      "value": 240000,
+      "why": "4 minutes. Even without movement the device writes a ping this often, so presence does not go stale for a member who is simply sitting down."
+    },
+    "dwellClusterRadius_m": {
+      "value": 150,
+      "why": "Fixes within this radius of each other count as the same dwell location when computing how long a member has been somewhere."
+    },
+    "dwellSettle_ms": {
+      "value": 70000,
+      "why": "A member must be settled this long before a 'since' time is shown, so passing through a place does not read as arriving at it."
+    }
+  }
+}

@@ -1,0 +1,44 @@
+{
+  // TypeScript configuration for the Peapod API.
+  //
+  // WHY "NodeNext" FOR BOTH module AND moduleResolution
+  //   The service runs on Node as real ESM ("type": "module"). NodeNext makes
+  //   the compiler resolve imports exactly the way Node will at runtime, which
+  //   has two consequences worth knowing before you edit an import:
+  //     1. Relative imports MUST carry a `.js` extension, even though the file
+  //        on disk is `.ts`. The compiler does not rewrite specifiers, so
+  //        `./env` would compile fine and then throw ERR_MODULE_NOT_FOUND.
+  //     2. `@peapod/shared` resolves through that package's "exports" map to
+  //        `dist/src/index.js` + `dist/src/index.d.ts`, so the shared package
+  //        must be BUILT before this one typechecks. Run `npm run build:shared`
+  //        at the repository root first.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "types": ["node"],
+
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "sourceMap": true,
+    "declaration": false,
+
+    // Strictness. `noUncheckedIndexedAccess` matches @peapod/shared: every
+    // `rows[0]` is typed `T | undefined`, which is what forces the explicit
+    // "not found" branch on database reads instead of a runtime crash three
+    // layers away.
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist", "test"]
+}

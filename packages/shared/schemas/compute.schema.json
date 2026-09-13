@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://peapod.app/schemas/compute.schema.json",
+  "title": "PeapodCompute",
+  "description": "Request and response payloads for the Rust compute service. This is the only contract between services/api (the caller) and services/compute (the implementation), and it is mirrored by a pure-TypeScript fallback in services/api/src/compute/fallback/ so the app keeps working when compute is unreachable. Every algorithm here is deterministic and stateless: compute never reads the database and never holds session state, which is what makes the fallback substitutable and the service trivially scalable.",
+  "$defs": {
+    "GeoPoint": {
+      "type": "object",
+      "description": "A bare coordinate pair in WGS84 degrees.",
+      "properties": {
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" }
+      },
+      "required": ["latitude", "longitude"]
+    },
+
+    "PingInput": {
+      "type": "object",
+      "description": "A GPS fix as fed to trip reconstruction. Only the fields the algorithm reads are included; timestamps arrive as epoch milliseconds so no date parsing happens inside the hot loop.",
+      "properties": {
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "recorded_at_ms": { "type": "integer", "description": "Epoch milliseconds, UTC." },
+        "speed": { "type": "number", "default": 0, "description": "Metres per second." },
+        "accuracy": { "type": "number", "default": 0, "description": "Metres. Interior fixes worse than 50 m are dropped." },
+        "is_driving": { "type": "boolean", "default": false }
+      },
+      "required": ["latitude", "longitude", "recorded_at_ms"]
+    },
+
+    "ReconstructTripRequest": {
+      "type": "object",
+      "description": "Reconstruct the most recent confirmed journey from one member's ping history. Input need not be sorted; the service sorts by recorded_at_ms first.",
+      "properties": {
+        "pings": { "type": "array", "items": { "$ref": "#/$defs/PingInput" } }
+      },
+      "required": ["pings"]
+    },
+
+    "ReconstructedTrip": {
+      "type": "object",
+      "description": "A drawable journey. 'points' is the smoothed polyline with the stationary tail at the destination trimmed off, so the line ends where the member actually arrived rather than smearing into a cluster of dots.",
+      "properties": {
+        "points": {
+          "type": "array",
+          "items": { "type": "array", "items": { "type": "number" }, "minItems": 2, "maxItems": 2 },
+          "description": "Ordered [latitude, longitude] pairs."
+        },
+        "start_at_ms": { "type": "integer" },
+        "arrival_at_ms": { "type": "integer" },
+        "distance_km": { "type": "number", "description": "Total path length walked along the polyline." },
+        "net_displacement_m": { "type": "number", "description": "Straight-line distance from first to last point. Distinguishes a real journey from stationary GPS jitter." },
+        "max_dist_from_start_m": { "type": "number", "description": "Farthest the member ever got from the start. Catches a round trip that returns home, whose net displacement is near zero." },
+        "avg_speed_ms": { "type": "number" },
+        "is_driving": { "type": "boolean", "description": "True when the run looks like a car trip, so the caller may road-snap the line." }
+      },
+      "required": ["points", "start_at_ms", "arrival_at_ms", "distance_km", "net_displacement_m", "max_dist_from_start_m", "avg_speed_ms", "is_driving"]
+    },
+
+    "ReconstructTripResponse": {
+      "type": "object",
+      "description": "The last confirmed trip, or null when the member has not travelled far enough to confirm one. A journey in progress does not replace the previous one, so no false line flashes onto the map while a real trip is still building up.",
+      "properties": {
+        "trip": { "oneOf": [{ "$ref": "#/$defs/ReconstructedTrip" }, { "type": "null" }] }
+      },
+      "required": ["trip"]
+    },
+
+    "ActivityClassification": {
+      "type": "object",
+      "description": "A human label for a speed reading. Phones do not expose OS-level activity recognition to this layer, so speed is the only signal available.",
+      "properties": {
+        "label": { "type": "string", "enum": ["Stationary", "Walking", "Cycling", "Driving"] },
+        "driving": { "type": "boolean" }
+      },
+      "required": ["label", "driving"]
+    },
+
+    "NearestPlaceRequest": {
+      "type": "object",
+      "description": "Find which saved place, if any, a member is currently at.",
+      "properties": {
+        "location": { "$ref": "#/$defs/GeoPoint" },
+        "places": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "latitude": { "type": "number" },
+              "longitude": { "type": "number" }
+            },
+            "required": ["id", "latitude", "longitude"]
+          }
+        },
+        "radius_m": { "type": "number", "default": 150, "description": "Defaults to the geofence entry radius so 'at a place' and 'inside the fence' agree." }
+      },
+      "required": ["location", "places"]
+    },
+
+    "NearestPlaceResponse": {
+      "type": "object",
+      "properties": {
+        "place_id": { "type": ["string", "null"] },
+        "distance_m": { "type": ["number", "null"] }
+      },
+      "required": ["place_id", "distance_m"]
+    },
+
+    "DecisionMemberVote": {
+      "type": "object",
+      "properties": {
+        "voter_id": { "type": "string" },
+        "stance": { "type": "string", "enum": ["want", "maybe", "no"] }
+      },
+      "required": ["voter_id", "stance"]
+    },
+
+    "EvaluateDecisionRequest": {
+      "type": "object",
+      "description": "Evaluate one idea against its pod. member_ids is the full membership, which is what makes 'everyone has voted' decidable.",
+      "properties": {
+        "member_ids": { "type": "array", "items": { "type": "string" } },
+        "votes": { "type": "array", "items": { "$ref": "#/$defs/DecisionMemberVote" } },
+        "creator_stance": { "type": ["string", "null"], "enum": ["want", "maybe", "no", null] },
+        "source_type": { "type": "string", "enum": ["user", "ai"], "default": "user" },
+        "status": { "type": "string", "enum": ["active", "archived", "converted"], "default": "active" },
+        "stage_override": { "type": ["string", "null"] }
+      },
+      "required": ["member_ids", "votes"]
+    },
+
+    "EvaluateDecisionResponse": {
+      "type": "object",
+      "description": "The aggregate. Callers must not reveal any of these counts to a member until all_voted is true -- hiding individual and aggregate support until everybody has answered is the core fairness rule of the feature.",
+      "properties": {
+        "want": { "type": "integer" },
+        "maybe": { "type": "integer" },
+        "no": { "type": "integer" },
+        "total": { "type": "integer" },
+        "voted_count": { "type": "integer" },
+        "all_voted": { "type": "boolean" },
+        "outcome": { "type": "string", "enum": ["deciding", "everyone_in", "work_it_out", "maybe_later", "not_for_us"] },
+        "stage": { "type": "string", "enum": ["deciding", "considering", "maybe_later", "planned", "archived", "converted"] },
+        "harmony": { "type": "integer", "minimum": 0, "maximum": 100, "description": "Rounded percentage, clamped to 0..100." }
+      },
+      "required": ["want", "maybe", "no", "total", "voted_count", "all_voted", "outcome", "stage", "harmony"]
+    },
+
+    "LevelRequest": {
+      "type": "object",
+      "properties": { "xp": { "type": "integer", "minimum": 0 } },
+      "required": ["xp"]
+    },
+
+    "LevelResponse": {
+      "type": "object",
+      "description": "Where a pod sits on the six-level progression, plus what it takes to reach the next one.",
+      "properties": {
+        "level": { "type": "integer", "minimum": 1, "maximum": 6 },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "current_level_xp": { "type": "integer", "description": "XP threshold of the level the pod currently occupies." },
+        "next_level_xp": { "type": ["integer", "null"], "description": "Null at max level." },
+        "progress": { "type": "number", "minimum": 0, "maximum": 1, "description": "Fraction of the way to the next level. Always 1 at max level." },
+        "plot_capacity": { "type": "integer", "description": "Garden slots unlocked at this level." }
+      },
+      "required": ["level", "name", "description", "current_level_xp", "next_level_xp", "progress", "plot_capacity"]
+    },
+
+    "GrowthEntryInput": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "kind": { "type": "string", "enum": ["plant", "decor"], "default": "plant" },
+        "planted_at_ms": { "type": ["integer", "null"] },
+        "grows_seconds": { "type": "integer", "default": 60 },
+        "water_boost": { "type": "number", "default": 0 }
+      },
+      "required": ["id"]
+    },
+
+    "GardenGrowthRequest": {
+      "type": "object",
+      "properties": {
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/GrowthEntryInput" } },
+        "now_ms": { "type": "integer", "description": "Evaluation instant, supplied by the caller so results are reproducible in tests." }
+      },
+      "required": ["entries", "now_ms"]
+    },
+
+    "GardenGrowthResponse": {
+      "type": "object",
+      "properties": {
+        "growth": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "growth": { "type": "number", "minimum": 0, "maximum": 1 },
+              "mature": { "type": "boolean", "description": "True at growth 1.0, when the plant may be harvested." }
+            },
+            "required": ["id", "growth", "mature"]
+          }
+        }
+      },
+      "required": ["growth"]
+    },
+
+    "SplitRequest": {
+      "type": "object",
+      "description": "Split an amount across members by percentage. Percentages are floating point but the output must be exact integers that sum to the input, so the service allocates the rounding remainder deterministically rather than rounding each share independently.",
+      "properties": {
+        "amount_minor": { "type": "integer", "minimum": 0 },
+        "shares": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "party_id": { "type": "string" },
+              "percent": { "type": "number", "minimum": 0, "maximum": 100 }
+            },
+            "required": ["party_id", "percent"]
+          }
+        }
+      },
+      "required": ["amount_minor", "shares"]
+    },
+
+    "SplitResponse": {
+      "type": "object",
+      "properties": {
+        "allocations": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "party_id": { "type": "string" },
+              "amount_minor": { "type": "integer" }
+            },
+            "required": ["party_id", "amount_minor"]
+          }
+        },
+        "total_minor": { "type": "integer", "description": "Sum of allocations. Guaranteed equal to the requested amount_minor." }
+      },
+      "required": ["allocations", "total_minor"]
+    },
+
+    "AchievementRequest": {
+      "type": "object",
+      "properties": {
+        "peas_count": { "type": "integer", "minimum": 0, "default": 1 },
+        "dates_count": { "type": "integer", "minimum": 0, "default": 0 },
+        "pinned_journey_days": { "type": ["integer", "null"] }
+      },
+      "required": ["peas_count", "dates_count"]
+    },
+
+    "AchievementTier": {
+      "type": "object",
+      "properties": {
+        "threshold": { "type": "integer" },
+        "label": { "type": "string" },
+        "description": { "type": "string" }
+      },
+      "required": ["threshold", "label", "description"]
+    },
+
+    "AchievementGroup": {
+      "type": "object",
+      "description": "A tiered track with every tier already unlocked, so the UI can page back through the pod's history rather than showing only the latest badge.",
+      "properties": {
+        "key": { "type": "string" },
+        "title": { "type": "string" },
+        "tiers": { "type": "array", "items": { "$ref": "#/$defs/AchievementTier" } },
+        "progress": { "type": "number", "minimum": 0, "maximum": 1, "description": "Progress from the frontier tier toward the next one. 1 when the track is complete." }
+      },
+      "required": ["key", "title", "tiers", "progress"]
+    },
+
+    "AchievementResponse": {
+      "type": "object",
+      "properties": {
+        "groups": { "type": "array", "items": { "$ref": "#/$defs/AchievementGroup" } }
+      },
+      "required": ["groups"]
+    },
+
+    "ItineraryRequest": {
+      "type": "object",
+      "description": "The direction a pod gave the planner. The pod chooses destination, dates, pace, style, and budget; the planner builds the whole connected trip from flights through to the return leg.",
+      "properties": {
+        "countries": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+        "regions": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "days": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "travellers": { "type": "integer", "minimum": 1, "default": 2 },
+        "personalities": {
+          "type": "array",
+          "items": { "type": "string" },
+          "default": [],
+          "description": "Travel-style tags such as 'food', 'nature', 'relaxed'. Used to rank candidate activities."
+        },
+        "pace": { "type": "string", "enum": ["relaxed", "balanced", "packed"], "default": "balanced" },
+        "budget_tier": { "type": "string", "enum": ["budget", "mid", "luxury"], "default": "mid" },
+        "start_date": { "type": ["string", "null"], "format": "date" },
+        "must_see": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "avoid": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "currency": { "type": "string", "default": "SGD" },
+        "seed": { "type": ["integer", "null"], "description": "Optional deterministic seed. Supplying one makes generation reproducible, which the tests rely on." }
+      },
+      "required": ["countries", "days"]
+    },
+
+    "ItineraryResponse": {
+      "type": "object",
+      "properties": {
+        "days": { "type": "array", "items": { "$ref": "https://peapod.app/schemas/domain.schema.json#/$defs/ItineraryDay" } },
+        "cost_breakdown": { "type": "array", "items": { "$ref": "https://peapod.app/schemas/domain.schema.json#/$defs/CostLine" } },
+        "total_minor": { "type": "integer" },
+        "cities": { "type": "array", "items": { "type": "string" } },
+        "personalization_note": { "type": "string", "description": "One sentence explaining how the pod's style shaped the plan, shown under the itinerary header." }
+      },
+      "required": ["days", "cost_breakdown", "total_minor", "cities", "personalization_note"]
+    },
+
+    "HealthResponse": {
+      "type": "object",
+      "properties": {
+        "status": { "type": "string", "enum": ["ok"] },
+        "service": { "type": "string" },
+        "version": { "type": "string" }
+      },
+      "required": ["status", "service", "version"]
+    }
+  }
+}

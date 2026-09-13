@@ -1,0 +1,54 @@
+{
+  "name": "@peapod/api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Peapod's Node/Fastify API. Owns the domain database, the row-level policy table, the realtime hub, the scheduled jobs, and the reward ledger. Holds no credentials (services/security owns those) and performs no heavy maths (services/compute owns that, with a TypeScript fallback from @peapod/shared).",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "//--- module system ---": "ESM everywhere, matching @peapod/shared. Relative imports therefore carry an explicit .js extension even in .ts source, because Node resolves the emitted specifier verbatim.",
+  "main": "./dist/index.js",
+  "scripts": {
+    "//--- development ---": "tsx watches and transpiles on the fly; no build step while iterating.",
+    "dev": "tsx watch src/index.ts",
+
+    "//--- production ---": "tsc emits plain ESM into dist/; start runs it with no transpiler in the loop.",
+    "build": "tsc -p tsconfig.json && node --input-type=module -e \"import { copyFileSync, mkdirSync } from 'node:fs'; mkdirSync('dist/db',{recursive:true}); copyFileSync('src/db/bootstrap.sql','dist/db/bootstrap.sql');\"",
+    "start": "node dist/index.js",
+
+    "//--- quality gates ---": "Run both before finishing any change. typecheck needs @peapod/shared built first (npm run build:shared at the repo root).",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "test:health": "vitest run test/endpoints.test.ts",
+    "test:watch": "vitest",
+
+    "//--- database ---": "generate diffs src/db/schema.ts against drizzle/ and writes a new SQL migration; migrate applies pending ones; seed loads the demo pod.",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx src/db/migrate.ts",
+    "db:seed": "tsx src/db/seed.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "10.0.2",
+    "@fastify/rate-limit": "10.2.2",
+    "@fastify/websocket": "11.0.2",
+    "@peapod/shared": "*",
+    "drizzle-orm": "0.44.2",
+    "fastify": "5.2.1",
+    "node-cron": "3.0.3",
+    "pino": "9.6.0",
+    "postgres": "3.4.5",
+    "zod": "3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.13.1",
+    "@types/node-cron": "3.0.11",
+    "drizzle-kit": "0.31.1",
+    "pino-pretty": "13.0.0",
+    "tsx": "4.19.2",
+    "typescript": "5.8.2",
+    "vitest": "3.0.5"
+  },
+  "//--- why there is no HTTP client dependency ---": "Node 20 ships a spec-compliant global fetch and AbortSignal.timeout(). Both outbound clients (services/security, services/compute) use them, so undici is not installed: one less dependency to keep patched, and identical behaviour.",
+  "//--- why there is no AWS SDK ---": "src/services/storage.ts signs S3 PUT URLs with AWS Signature Version 4 using node:crypto only. Presigning is ~60 lines of HMAC; the SDK would add tens of megabytes to the image for that one function."
+}

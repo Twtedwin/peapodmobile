@@ -1,0 +1,57 @@
+{
+  "name": "peapod",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Peapod — a shared-life app for pods (couples, families, close friend groups). Polyglot monorepo: Expo/React Native client, Node API, Python security service, Rust compute service.",
+  "type": "module",
+  "main": "apps/mobile/index.ts",
+  "workspaces": [
+    "packages/*",
+    "services/api",
+    "apps/mobile"
+  ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "//--- contract ---": "The shared package is the single source of truth for types. Build it before anything that imports it.",
+    "build:shared": "npm run build --workspace @peapod/shared",
+    "codegen": "npm run codegen --workspace @peapod/shared",
+    "//--- infrastructure ---": "Postgres is the only required container. Compute (Rust) is optional; the API falls back to TypeScript.",
+    "infra:up": "docker compose up -d postgres",
+    "infra:down": "docker compose down",
+    "infra:logs": "docker compose logs -f",
+    "infra:reset": "docker compose down -v && docker compose up -d postgres",
+    "infra:compute": "docker compose up -d compute",
+    "//--- database ---": "Drizzle owns the schema; migrations are generated from services/api/src/db/schema.ts.",
+    "db:generate": "npm run db:generate --workspace @peapod/api",
+    "db:migrate": "npm run db:migrate --workspace @peapod/api",
+    "db:seed": "npm run db:seed --workspace @peapod/api",
+    "//--- development ---": "Run each service in its own terminal, or use dev:all to start the Node + Python services together.",
+    "dev:api": "npm run dev --workspace @peapod/api",
+    "dev:security": "node scripts/run-security.mjs",
+    "seed:security": "node scripts/run-security.mjs --seed",
+    "start": "npm run start --workspace @peapod/mobile",
+    "dev:mobile": "npm run start --workspace @peapod/mobile",
+    "build:apk": "npm run build:apk --workspace @peapod/mobile",
+    "dev:all": "concurrently -n api,security -c cyan,magenta \"npm:dev:api\" \"npm:dev:security\"",
+    "//--- quality gates ---": "Run these before finishing any change.",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "test:health": "npm run test:health --workspace @peapod/api && npm run test:health --workspace @peapod/mobile",
+    "check": "npm run build:shared && npm run typecheck && npm run lint",
+    "postinstall": "node scripts/dedupe-react-native.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "typescript": "~6.0.3"
+  },
+  "dependencies": {
+    "expo": "^57.0.0",
+    "git": "^0.1.5",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "react-native": "0.86.3"
+  }
+}

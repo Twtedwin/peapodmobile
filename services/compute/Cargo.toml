@@ -1,0 +1,60 @@
+[package]
+name = "peapod-compute"
+version = "0.1.0"
+edition = "2021"
+# LazyLock (used in src/rules.rs to parse the embedded rule JSON on first use)
+# is stable from 1.80. The Docker builder image (rust:1-slim) is well past this,
+# but pinning it here makes the requirement explicit instead of implicit.
+rust-version = "1.80"
+description = "Peapod's stateless compute microservice: geo maths, trip reconstruction, decision aggregation, progression, money splitting and itinerary generation."
+license = "UNLICENSED"
+publish = false
+
+[dependencies]
+# HTTP framework. 0.8 is the current stable line and is what the route syntax,
+# handler signatures and `axum::serve` calls in src/main.rs are written against.
+axum = "0.8"
+
+# Async runtime. Only the features this service actually uses:
+#   rt-multi-thread -> the worker pool behind #[tokio::main]
+#   macros          -> #[tokio::main]
+#   net             -> tokio::net::TcpListener, which axum::serve consumes
+#   signal          -> SIGINT/SIGTERM handling for graceful shutdown
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal"] }
+
+# Serialisation. Every DTO in src/models.rs and every rule file in src/rules.rs
+# goes through these two.
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Middleware:
+#   trace -> one span + request/response log line per HTTP request
+#   cors  -> permissive CORS. The service is private-network only, but the
+#            layer costs nothing and keeps local `curl`/browser probing simple.
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+
+# Structured logging.
+tracing = "0.1"
+# "env-filter" is NOT a default feature of tracing-subscriber, and main.rs uses
+# EnvFilter to honour RUST_LOG, so it has to be requested explicitly.
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Error plumbing:
+#   anyhow    -> loading the optional travel dataset from disk (many error kinds
+#                collapse into one, and the failure is non-fatal)
+#   thiserror -> the AppError enum in src/error.rs
+anyhow = "1"
+thiserror = "2"
+
+# Binaries are auto-discovered (do not also list them under [[bin]] or cargo
+# will build `healthcheck` twice):
+#   src/main.rs            -> peapod-compute  (the HTTP server)
+#   src/bin/healthcheck.rs -> healthcheck     (Docker HEALTHCHECK TCP probe)
+
+[profile.release]
+# Slimmer binary for the runtime image; this service is not latency-bound by
+# codegen choices, so favouring size is free.
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true

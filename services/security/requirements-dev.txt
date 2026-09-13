@@ -1,0 +1,25 @@
+# =============================================================================
+# services/security -- pinned development / CI dependencies
+# =============================================================================
+#
+# PURPOSE
+#   Everything needed to run `pytest`, `ruff`, and `mypy` against this service.
+#   Kept separate from `requirements.txt` so the production container image
+#   never ships a test runner or a linter.
+#
+# USAGE
+#   pip install -r requirements-dev.txt
+#   (it installs the runtime set too, via the -r line below)
+# =============================================================================
+
+-r requirements.txt
+
+pytest==8.3.4
+pytest-asyncio==0.25.0
+iniconfig==2.0.0           # transitive: pytest
+packaging==24.2            # transitive: pytest
+pluggy==1.5.0              # transitive: pytest
+
+ruff==0.8.4
+mypy==1.14.0
+mypy-extensions==1.0.0     # transitive: mypy

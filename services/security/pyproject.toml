@@ -1,0 +1,162 @@
+# =============================================================================
+# services/security -- Peapod security service (Python 3.12 / FastAPI)
+# =============================================================================
+#
+# PURPOSE
+#   Packaging + tool configuration for the ONLY component in the Peapod
+#   monorepo that is allowed to touch credentials: password hashes, OTP codes,
+#   refresh tokens, password-reset tokens, and OAuth identities.
+#
+# WHO CALLS THIS SERVICE
+#   - apps/mobile   : directly, for the auth screens (register / verify / login
+#                     / refresh / forgot / reset / me).
+#   - services/api  : service-to-service over /internal/* (verify a bearer
+#                     token, ask for an authorization decision, look up
+#                     profiles). The Node API never sees a password hash.
+#
+# WHY PYTHON FOR THIS SERVICE
+#   argon2-cffi, PyJWT + cryptography, and the wider Python crypto ecosystem are
+#   mature, audited, and boring -- exactly what you want for the one process
+#   that holds the credential tables. See README.md for the longer argument.
+#
+# NOTE ON INSTALLING
+#   `pyproject.toml` is the source of truth for humans; `requirements.txt` is a
+#   fully pinned lock-style export so a plain
+#     pip install -r requirements.txt
+#   works in a container with no build backend and no resolver surprises.
+# =============================================================================
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "peapod-security"
+version = "0.1.0"
+description = "Peapod security service: authentication, credentials, and the single source of truth for authorization decisions."
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+license = { text = "UNLICENSED" }
+
+dependencies = [
+  # --- Web framework -------------------------------------------------------
+  "fastapi>=0.115.6,<0.116",
+  "uvicorn[standard]>=0.32.1,<0.33",
+
+  # --- Validation / settings ----------------------------------------------
+  # Pydantic v2 (NOT v1): this codebase uses `model_validate`, `field_validator`,
+  # `model_validator`, and `ConfigDict` throughout.
+  "pydantic>=2.10.4,<3",
+  "pydantic-settings>=2.7.0,<3",
+  # Registers the `EmailStr` validator used on every email-bearing request body.
+  "email-validator>=2.2.0,<3",
+
+  # --- Database ------------------------------------------------------------
+  # SQLAlchemy 2.0 declarative style only (`Mapped` / `mapped_column`).
+  "sqlalchemy[asyncio]>=2.0.36,<2.1",
+  "asyncpg>=0.30.0,<0.31",
+  "alembic>=1.14.0,<2",
+
+  # --- Cryptography --------------------------------------------------------
+  # Argon2id password + OTP hashing. Chosen over bcrypt because Argon2id is
+  # memory-hard, so a GPU/ASIC attacker gains far less from parallelism.
+  "argon2-cffi>=23.1.0,<24",
+  # `[crypto]` pulls in `cryptography`, which PyJWT needs for RS256. Without
+  # the extra, PyJWT silently supports only HMAC algorithms.
+  "pyjwt[crypto]>=2.10.1,<3",
+
+  # --- Outbound HTTP -------------------------------------------------------
+  # Google token exchange + JWKS fetch + transactional email provider.
+  # httpx is used for its async client; `requests` would block the event loop.
+  "httpx>=0.28.1,<0.29",
+
+  # --- Form parsing --------------------------------------------------------
+  # Required by Starlette to parse `application/x-www-form-urlencoded` bodies
+  # (the OAuth token endpoint contract is form-encoded, and some native
+  # WebView flows post forms back to the callback).
+  "python-multipart>=0.0.20,<0.1",
+]
+
+# NOTE ON RATE LIMITING -- why there is no `slowapi` here.
+#   The brief allowed either `slowapi` or a hand-rolled limiter. We hand-rolled
+#   one in `app/security/ratelimit.py` for three reasons:
+#     1. slowapi keys limits off the Request object (usually remote address).
+#        We must limit on TWO independent keys per call -- the client IP *and*
+#        the submitted identifier (email) -- so that one attacker IP cannot
+#        spray 10 000 emails and one targeted email cannot be sprayed from
+#        10 000 IPs. Expressing that in slowapi means fighting its decorator.
+#     2. We need a different budget per action (login vs register vs OTP verify
+#        vs OTP resend vs password reset), plus the ability to report the exact
+#        `Retry-After` remaining. That is ~120 lines of well-commented code.
+#     3. Fewer third-party dependencies in the process that holds the
+#        credential tables is a security win in itself.
+#   The trade-off (in-process state, so budgets are per-worker) is documented
+#   in that module and in README.md, with a Redis backend listed as the
+#   production follow-up.
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3.4,<9",
+  "pytest-asyncio>=0.25.0,<0.26",
+  "ruff>=0.8.4,<0.9",
+  "mypy>=1.14.0,<2",
+]
+
+[tool.setuptools]
+# The service is run as `uvicorn app.main:app`, not installed as a library, but
+# declaring the package keeps `pip install -e .` and mypy path resolution sane.
+packages = ["app", "app.routes", "app.security"]
+
+# -----------------------------------------------------------------------------
+# pytest
+# -----------------------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# `auto` means a plain `async def test_...` is collected and run without needing
+# an `@pytest.mark.asyncio` decorator on every single test.
+asyncio_mode = "auto"
+filterwarnings = ["error::DeprecationWarning:app.*"]
+
+# -----------------------------------------------------------------------------
+# ruff
+# -----------------------------------------------------------------------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes (undefined names, unused imports -- catches typos in a
+         # codebase we deliberately do not run before shipping)
+  "I",   # import sorting
+  "B",   # bugbear
+  "UP",  # pyupgrade
+  "ASYNC", # blocking calls inside async def -- important here, argon2 and
+           # JWKS parsing are CPU-bound and must not stall the event loop
+  "S",   # flake8-bandit: security anti-patterns
+]
+ignore = [
+  "S101",  # `assert` is fine in tests
+  "E501",  # long lines are usually long *comments*, which we want
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests legitimately hard-code fake secrets and call private helpers.
+"tests/*" = ["S105", "S106", "S311"]
+
+# -----------------------------------------------------------------------------
+# mypy
+# -----------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+plugins = ["pydantic.mypy"]
+# Alembic migration scripts are generated and intentionally untyped.
+exclude = ["^alembic/versions/"]
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = ["argon2.*", "jwt.*"]
+ignore_missing_imports = true

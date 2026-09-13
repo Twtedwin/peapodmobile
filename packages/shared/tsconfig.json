@@ -1,0 +1,37 @@
+{
+  // The shared package is consumed by three different TypeScript contexts (the
+  // Expo app via Metro, the Fastify API via tsx/node, and its own build), so it
+  // emits plain ESM with declaration files and makes no assumptions about DOM
+  // or React Native globals.
+  //
+  // WHY rootDir IS "." AND NOT "./src":
+  //   The canonical rule and catalog JSON lives in ./data, because the Rust
+  //   service embeds those exact files with include_str! and the Node seeder
+  //   reads them from disk. TypeScript will only copy a resolved .json file
+  //   into outDir if it sits inside rootDir, so rootDir has to cover both
+  //   ./src and ./data. The cost is that compiled output lands in dist/src/
+  //   rather than dist/, which the "exports" map in package.json accounts for.
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022"],
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "outDir": "./dist",
+    "rootDir": ".",
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    // Required so ./data/**/*.json can be imported as typed modules rather
+    // than read through the filesystem, which React Native cannot do.
+    "resolveJsonModule": true
+  },
+  "include": ["src/**/*.ts", "data/**/*.json"],
+  "exclude": ["dist", "node_modules", "scripts"]
+}

@@ -1,0 +1,115 @@
+{
+  "cli": {
+    "version": ">= 13.0.0",
+    "appVersionSource": "remote"
+  },
+
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_API_URL": "http://10.0.2.2:8080"
+      },
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": true
+      }
+    },
+
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "android": {
+        "buildType": "apk"
+      },
+      "ios": {
+        "simulator": false
+      }
+    },
+
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_URL": "https://api.peapod.app"
+      },
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "ios": {
+        "simulator": false
+      }
+    }
+  },
+
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "REPLACE_WITH_APPLE_ID_EMAIL",
+        "ascAppId": "REPLACE_WITH_APP_STORE_CONNECT_APP_ID",
+        "appleTeamId": "REPLACE_WITH_APPLE_TEAM_ID"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal",
+        "releaseStatus": "draft"
+      }
+    }
+  },
+
+  "_documentation": {
+    "_read_this_first": [
+      "JSON has no comments, so the explanations live in this ignored key. EAS ignores any top-level key it does not recognise.",
+      "Nothing here contains a credential. Every value that would be one is a REPLACE_ME placeholder or a file path that is git-ignored."
+    ],
+
+    "cli.appVersionSource": [
+      "'remote' means EAS is the single source of truth for iOS buildNumber and Android versionCode.",
+      "This is why app.config.ts sets neither. Two builds sharing a build number is rejected by App Store Connect, and a versionCode that does not strictly increase is rejected by Google Play. A number kept in a committed file gets that wrong the first time two people build on the same day."
+    ],
+
+    "profiles": {
+      "development": [
+        "Produces a DEVELOPMENT CLIENT: a build of the app shell that can load JavaScript from a Metro server, like Expo Go but containing this project's own native modules.",
+        "You do NOT need this profile for day-to-day work. Every dependency in package.json ships inside Expo Go, so `npm run start` plus the Expo Go app is the normal loop. This profile exists for the day a native module that Expo Go does not contain becomes necessary.",
+        "Android builds an .apk because an .aab cannot be sideloaded onto a device. iOS targets the simulator, which needs no provisioning profile."
+      ],
+      "preview": [
+        "An internal release build. Same optimised code path as production, but Android outputs a sideloadable .apk.",
+        "The profile deliberately does not hardcode EXPO_PUBLIC_API_URL. A local build reads the developer's root .env LAN URL; a cloud preview build must receive the variable through an EAS environment."
+      ],
+      "production": [
+        "Android builds 'app-bundle', producing an .aab. Google Play has required the App Bundle format for new apps since August 2021 and will refuse an .apk upload; the bundle also lets Play generate per-device APKs, which cuts the download size.",
+        "iOS produces a signed .ipa for App Store Connect. `eas submit --profile production --platform ios` uploads it, and it appears in TestFlight for internal testers before any public release.",
+        "autoIncrement bumps iOS buildNumber and Android versionCode against the remote counter, which is what makes repeated submissions possible without editing any file."
+      ]
+    },
+
+    "channels": [
+      "The `channel` on each profile binds that build to an EAS Update channel of the same name, so an over-the-air JavaScript update published to 'preview' can never land on a production install."
+    ],
+
+    "env": [
+      "EXPO_PUBLIC_API_URL is inlined into the bundle by Metro and is therefore readable by anyone with the app. That is fine - it is a public URL - but it is also the reason no secret may ever be given an EXPO_PUBLIC_ prefix.",
+      "Secrets that a BUILD needs (the Google Maps API keys read by app.config.ts, for instance) belong in EAS environment variables marked 'secret': `eas env:create --name GOOGLE_MAPS_ANDROID_API_KEY --scope project --visibility secret`. They are injected into the build container and never written to the repository."
+    ],
+
+    "submit.production.ios": {
+      "appleId": "The Apple ID email of an account with App Manager rights on the app. EAS uses it to authenticate to App Store Connect.",
+      "ascAppId": "The numeric App Store Connect app id, visible in the URL of the app's page in App Store Connect. It is what disambiguates the upload target when one Apple account owns several apps.",
+      "appleTeamId": "The 10-character Apple Developer Team ID from the Membership page. Required when the Apple ID belongs to more than one team.",
+      "recommended": "Prefer an App Store Connect API key over the Apple ID/password path: run `eas credentials`, choose App Store Connect API Key, and EAS stores it server-side. That avoids two-factor prompts in CI and avoids putting an Apple ID in a committed file at all."
+    },
+
+    "submit.production.android": {
+      "serviceAccountKeyPath": "Path to a Google Cloud service account JSON key with the 'Service Account User' role and Release Manager access in the Play Console. It authorises uploads to Play. THE FILE MUST NOT BE COMMITTED - it is in .gitignore, and its contents are a credential.",
+      "track": "'internal' is the fastest Play track: it reaches testers within minutes and has no review queue. Promote from there to 'alpha', 'beta', then 'production' inside the Play Console.",
+      "releaseStatus": "'draft' means the upload appears in the Play Console but is not rolled out until a human presses release. Change to 'completed' only once the release process is trusted end to end."
+    }
+  }
+}

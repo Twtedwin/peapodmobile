@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://peapod.app/schemas/core.schema.json",
+  "title": "PeapodCore",
+  "description": "The twelve core Peapod records. Field names, enums, and defaults are the product contract -- existing client logic and the row-level rules in services/api/src/policy/rls.ts depend on them. Every record carries the four audit columns (id, created_at, updated_at, created_by_id) because the authorization rules are written in terms of created_by_id.",
+  "$defs": {
+    "AuditFields": {
+      "type": "object",
+      "description": "Columns present on every record. created_by_id is the owner used by the ownership branch of every row-level policy; it is set server-side from the verified access token and is never accepted from a client payload.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid", "description": "Primary key." },
+        "created_at": { "type": "string", "format": "date-time", "description": "UTC creation timestamp." },
+        "updated_at": { "type": "string", "format": "date-time", "description": "UTC timestamp of the last mutation." },
+        "created_by_id": { "type": "string", "format": "uuid", "description": "The user who created the row. Server-assigned." }
+      },
+      "required": ["id", "created_at", "updated_at", "created_by_id"]
+    },
+
+    "PodGroupType": {
+      "type": "string",
+      "description": "What kind of group this pod is. Drives copy throughout the app (a couple sees different wording than a friend group).",
+      "enum": ["couple", "family", "friends"],
+      "default": "couple"
+    },
+    "PodRole": {
+      "type": "string",
+      "description": "A member's role in a pod. 'admin' is surfaced in the UI as a 'Seed' -- the only role allowed to rename the pod, generate invite codes, change roles, remove members, or delete the pod.",
+      "enum": ["admin", "member"],
+      "default": "member"
+    },
+    "PlaceCategory": {
+      "type": "string",
+      "enum": ["home", "work", "food", "date", "travel", "other"],
+      "default": "other"
+    },
+    "PlaceAlertEvent": {
+      "type": "string",
+      "description": "Whether the geofence fired on entry or exit.",
+      "enum": ["arrived", "left"]
+    },
+    "PlanAudience": {
+      "type": "string",
+      "description": "Who a plan is for. Decides who receives the day-before reminder: 'self' notifies only the creator, 'specific' notifies participant_ids, 'pod' notifies every member.",
+      "enum": ["self", "specific", "pod"],
+      "default": "pod"
+    },
+    "PlanRepeat": {
+      "type": "string",
+      "enum": ["none", "daily", "weekly", "monthly"],
+      "default": "none"
+    },
+    "NotificationKind": {
+      "type": "string",
+      "enum": ["info", "message", "pod_message", "nudge", "place_alert", "date_reminder", "plan_reminder"],
+      "default": "info"
+    },
+
+    "Pod": {
+      "type": "object",
+      "description": "A pod: the small group that shares location, plans, money, and a world. Everything else in the system is scoped to a pod.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 60 },
+        "emoji": { "type": "string", "default": "\u2764\ufe0f" },
+        "group_type": { "$ref": "#/$defs/PodGroupType" },
+        "trip_history_enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "When false, members' past movement trails are hidden from the map. A privacy switch owned by the pod admin."
+        }
+      },
+      "required": ["name"]
+    },
+
+    "PodMembership": {
+      "type": "object",
+      "description": "Joins a user to a pod with a role. Clients never write this table directly; all changes go through the privileged pod routes so admin checks cannot be bypassed.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "pod_id": { "type": "string", "format": "uuid" },
+        "user_id": { "type": "string", "format": "uuid" },
+        "role": { "$ref": "#/$defs/PodRole" }
+      },
+      "required": ["pod_id", "user_id"]
+    },
+
+    "PodInvite": {
+      "type": "object",
+      "description": "A short-lived join code. Codes are six characters and expire ten minutes after issue, matching the original behaviour.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "pod_id": { "type": "string", "format": "uuid" },
+        "code": { "type": "string", "minLength": 6, "maxLength": 6 },
+        "expires_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pod_id", "code", "expires_at"]
+    },
+
+    "User": {
+      "type": "object",
+      "description": "An account. Credentials live in the Python security service; this record holds only the profile fields the app renders.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "display_name": { "type": "string" },
+        "avatar_url": { "type": ["string", "null"] },
+        "permissions_granted": {
+          "type": "boolean",
+          "default": false,
+          "description": "Set once the user has completed the location + notification onboarding screen. The app shell redirects to that screen while this is false."
+        },
+        "role": {
+          "type": "string",
+          "enum": ["admin", "user"],
+          "default": "user",
+          "description": "Platform-level role, distinct from PodRole. 'admin' is a Peapod operator, used by the escape hatch in every row-level policy."
+        }
+      },
+      "required": ["email", "display_name"]
+    },
+
+    "LocationPing": {
+      "type": "object",
+      "description": "One GPS fix from one member's device. The highest-volume table in the system: written every time a member moves past the movement threshold, and read in bulk by the compute service to reconstruct trips.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "speed": { "type": "number", "default": 0, "description": "Ground speed in metres per second, as reported by the OS." },
+        "accuracy": { "type": "number", "default": 0, "description": "Horizontal accuracy radius in metres. Fixes worse than 50 m are discarded during trip reconstruction." },
+        "heading": { "type": "number", "default": 0, "description": "Degrees clockwise from true north." },
+        "is_driving": { "type": "boolean", "default": false, "description": "Device-side guess that this fix was taken in a vehicle." },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["latitude", "longitude"]
+    },
+
+    "PhoneStatus": {
+      "type": "object",
+      "description": "Device telemetry shown on a member's card. The *_supported flags exist because some platforms refuse to report battery or connection type, and the UI must show 'N/A' rather than a misleading zero.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "battery_level": { "type": "number", "minimum": 0, "maximum": 100, "default": 0 },
+        "is_charging": { "type": "boolean", "default": false },
+        "connection_type": { "type": "string", "default": "unknown" },
+        "signal_bars": { "type": "number", "minimum": 0, "maximum": 4, "default": 0 },
+        "battery_supported": { "type": "boolean", "default": true },
+        "connection_supported": { "type": "boolean", "default": true },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["battery_level"]
+    },
+
+    "FavouritePlace": {
+      "type": "object",
+      "description": "A saved place: home, work, a regular cafe. Doubles as a geofence -- arriving within 150 m creates a PlaceAlert and notifies the pod. A non-null expires_at makes the place temporary (useful for a one-off meeting point).",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "address": { "type": ["string", "null"] },
+        "latitude": { "type": "number", "minimum": -90, "maximum": 90 },
+        "longitude": { "type": "number", "minimum": -180, "maximum": 180 },
+        "category": { "$ref": "#/$defs/PlaceCategory" },
+        "expires_at": { "type": ["string", "null"], "format": "date-time" },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["name", "latitude", "longitude"]
+    },
+
+    "PlaceAlert": {
+      "type": "object",
+      "description": "An audit trail of geofence crossings. Written by the device that crossed the fence, read to render 'Sarah arrived at Home'.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "place_name": { "type": "string" },
+        "event": { "$ref": "#/$defs/PlaceAlertEvent" },
+        "latitude": { "type": ["number", "null"] },
+        "longitude": { "type": ["number", "null"] },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["place_name", "event"]
+    },
+
+    "Plan": {
+      "type": "object",
+      "description": "Anything with a date that is not a full trip: a reminder, a call, a date night. Appears in the unified Plans list alongside trips.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": ["string", "null"] },
+        "start_time": { "type": "string", "format": "date-time" },
+        "end_time": { "type": ["string", "null"], "format": "date-time" },
+        "location_name": { "type": ["string", "null"] },
+        "for_whom": { "$ref": "#/$defs/PlanAudience" },
+        "participant_ids": {
+          "type": "array",
+          "items": { "type": "string", "format": "uuid" },
+          "default": [],
+          "description": "Only meaningful when for_whom is 'specific'."
+        },
+        "repeat_frequency": { "$ref": "#/$defs/PlanRepeat" },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["title", "start_time"]
+    },
+
+    "Message": {
+      "type": "object",
+      "description": "A chat message. A null recipient_id makes it a pod-wide group message; a set recipient_id makes it one-to-one. Pod messages are pruned after seven days; direct messages with a null pod_id are retained globally.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "recipient_id": { "type": ["string", "null"], "format": "uuid" },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" },
+        "text": { "type": "string", "minLength": 1, "maxLength": 4000 }
+      },
+      "required": ["text"]
+    },
+
+    "Notification": {
+      "type": "object",
+      "description": "An in-app notification addressed to one user. Read/update/delete are restricted to the recipient or the creator.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "body": { "type": ["string", "null"] },
+        "emoji": { "type": "string", "default": "\u2764\ufe0f" },
+        "is_read": { "type": "boolean", "default": false },
+        "recipient_id": { "type": ["string", "null"], "format": "uuid" },
+        "type": { "$ref": "#/$defs/NotificationKind" },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["title"]
+    },
+
+    "ImportantDate": {
+      "type": "object",
+      "description": "A pod milestone. count_up dates power 'Together for 1,124 days'; count-down dates power 'Sarah's birthday in 12 days'. The milestone job reads count_up dates to celebrate day 100, 200, 365, 500, 730, and 1000.",
+      "allOf": [{ "$ref": "#/$defs/AuditFields" }],
+      "properties": {
+        "title": { "type": "string", "minLength": 1 },
+        "date": { "type": "string", "format": "date", "description": "Calendar date, no time component. Parsed as UTC midnight to avoid off-by-one-day errors across time zones." },
+        "count_up": { "type": "boolean", "default": true },
+        "recurring": { "type": "boolean", "default": false, "description": "True for yearly events like birthdays." },
+        "emoji": { "type": "string", "default": "\u2764\ufe0f" },
+        "pinned": { "type": "boolean", "default": false, "description": "The single pinned date is the pod's headline journey, shown on the profile." },
+        "pod_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["title", "date"]
+    }
+  }
+}

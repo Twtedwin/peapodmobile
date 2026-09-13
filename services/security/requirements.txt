@@ -1,0 +1,84 @@
+# =============================================================================
+# services/security -- fully pinned runtime dependencies
+# =============================================================================
+#
+# PURPOSE
+#   A lock-style export of the runtime dependency set declared in
+#   `pyproject.toml`, including transitive packages, so that
+#
+#       pip install -r requirements.txt
+#
+#   works inside `python:3.12-slim` with no build backend, no resolver
+#   backtracking, and no chance of a surprise minor upgrade landing in an image
+#   that holds the credential tables.
+#
+# WHY EXACT PINS (==) AND NOT RANGES
+#   Reproducible builds. If two deployments of this service disagree about the
+#   version of `cryptography`, they can disagree about which JWTs verify. Pins
+#   are the difference between "we know what is running" and "we hope".
+#
+# HOW TO REGENERATE
+#   Edit `pyproject.toml`, then in a clean venv:
+#       pip install -e .
+#       pip freeze --exclude-editable > requirements.txt
+#   and re-apply this header plus the platform marker on uvloop.
+#
+# DEV/TEST TOOLS
+#   Deliberately absent -- see `requirements-dev.txt`. Test frameworks are not
+#   installed into the production image.
+# =============================================================================
+
+# --- Web framework -----------------------------------------------------------
+fastapi==0.115.6
+starlette==0.41.3          # transitive: fastapi's ASGI foundation
+uvicorn==0.32.1
+
+# uvicorn[standard] extras, expanded so nothing is resolved at build time.
+httptools==0.6.4           # fast HTTP/1.1 parser
+python-dotenv==1.0.1       # also used by pydantic-settings for .env loading
+PyYAML==6.0.2              # uvicorn --log-config support
+watchfiles==1.0.3          # --reload file watcher (dev only, harmless in prod)
+websockets==14.1
+# uvloop has no Windows wheels. Developers on Windows must still be able to
+# `pip install -r requirements.txt`, so the marker keeps it Linux/macOS-only.
+uvloop==0.21.0; sys_platform != "win32"
+
+# --- Validation / settings ---------------------------------------------------
+pydantic==2.10.4
+pydantic-core==2.27.2      # transitive: compiled core, version-locked to pydantic
+pydantic-settings==2.7.0
+annotated-types==0.7.0     # transitive: pydantic constraint metadata
+typing_extensions==4.12.2  # transitive: pydantic / sqlalchemy backports
+email_validator==2.2.0
+dnspython==2.7.0           # transitive: email_validator MX/deliverability checks
+idna==3.10                 # transitive: email_validator + httpx IDNA handling
+
+# --- Database ----------------------------------------------------------------
+SQLAlchemy==2.0.36
+asyncpg==0.30.0
+greenlet==3.1.1            # transitive: required by SQLAlchemy's asyncio bridge
+alembic==1.14.0
+Mako==1.3.8                # transitive: alembic migration templating
+MarkupSafe==3.0.2          # transitive: Mako
+
+# --- Cryptography ------------------------------------------------------------
+argon2-cffi==23.1.0
+argon2-cffi-bindings==21.2.0  # transitive: the C Argon2 reference implementation
+cffi==1.17.1               # transitive: argon2-cffi-bindings + cryptography
+pycparser==2.22            # transitive: cffi
+PyJWT==2.10.1
+cryptography==44.0.0       # from pyjwt[crypto]; provides RS256 sign/verify
+
+# --- Outbound HTTP -----------------------------------------------------------
+httpx==0.28.1
+httpcore==1.0.7            # transitive: httpx transport
+h11==0.14.0                # transitive: httpcore + uvicorn HTTP/1.1
+certifi==2024.12.14        # transitive: TLS root store for httpx (Google JWKS)
+anyio==4.7.0               # transitive: starlette + httpx async primitives
+sniffio==1.3.1             # transitive: anyio async-library detection
+
+# --- Form parsing ------------------------------------------------------------
+python-multipart==0.0.20
+
+# --- CLI plumbing ------------------------------------------------------------
+click==8.1.8               # transitive: uvicorn's command line

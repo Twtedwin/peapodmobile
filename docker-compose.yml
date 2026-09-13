@@ -1,0 +1,159 @@
+# =============================================================================
+# Peapod local development stack
+# =============================================================================
+#
+# PURPOSE
+#   Runs the pieces of Peapod that are awkward to install natively: Postgres,
+#   the Rust compute service (so no Rust toolchain is needed), and optionally the
+#   Python security service and Node API.
+#
+# THE USUAL WORKFLOW
+#   Start the infrastructure, then run the two services you are editing natively
+#   so you get fast reloads:
+#
+#     docker compose up -d postgres compute
+#     npm run dev:api        # terminal 2
+#     npm run dev:security   # terminal 3
+#     npm run dev:mobile     # terminal 4
+#
+#   Or bring up everything in containers with the `full` profile:
+#
+#     docker compose --profile full up -d
+#
+# WHY THE RUST SERVICE IS CONTAINERISED BY DEFAULT
+#   It is the only component with a toolchain most contributors will not already
+#   have. Building it here means `docker compose up` is the complete Rust
+#   prerequisite. The Node API also falls back to pure TypeScript if this
+#   container is not running, so the app works either way -- see
+#   services/api/src/compute/.
+#
+# BUILD CONTEXT NOTE
+#   Every service builds from the REPO ROOT (`context: .`), not from its own
+#   directory, because they all need `packages/shared/` for the contract and the
+#   rule JSON. The `dockerfile:` key points at each service's own Dockerfile.
+
+name: peapod
+
+services:
+  # ---------------------------------------------------------------------------
+  # Postgres -- the single database. All three backend services share it, but
+  # each owns its own tables: the API owns the domain schema, the security
+  # service owns the credential tables. Neither migrates the other's.
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:16-alpine
+    container_name: peapod-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: peapod
+      POSTGRES_PASSWORD: peapod_dev_password
+      POSTGRES_DB: peapod
+      # Enables checksums so silent data corruption is detected rather than
+      # served. Cheap in development, and matches what production should use.
+      POSTGRES_INITDB_ARGS: "--data-checksums"
+    ports:
+      # Exposed on the host so `npm run dev:api` and psql can reach it.
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      # `pg_isready` returns success as soon as the server accepts connections.
+      # The API and security services wait on this, otherwise their first
+      # migration races the database's own initialisation.
+      test: ["CMD-SHELL", "pg_isready -U peapod -d peapod"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # ---------------------------------------------------------------------------
+  # Rust compute service -- all the maths. Stateless: no database, no session,
+  # no auth. Reachable only from the API on the internal network, which is why
+  # its port is published only for direct debugging.
+  # ---------------------------------------------------------------------------
+  compute:
+    build:
+      context: .
+      dockerfile: services/compute/Dockerfile
+    container_name: peapod-compute
+    restart: unless-stopped
+    environment:
+      PORT: 8082
+      RUST_LOG: "info,tower_http=debug"
+      # The travel dataset is mounted rather than baked in, so editing the
+      # catalog does not require rebuilding the image.
+      TRAVEL_DATASET_PATH: /app/data/travel-dataset.json
+    ports:
+      - "8082:8082"
+    volumes:
+      - ./packages/shared/data/catalog:/app/data:ro
+    healthcheck:
+      test: ["CMD", "/app/healthcheck"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+      start_period: 5s
+
+  # ---------------------------------------------------------------------------
+  # Python security service -- the ONLY component that touches credentials.
+  # Runs under the `full` profile; otherwise run it natively for fast reloads.
+  # ---------------------------------------------------------------------------
+  security:
+    build:
+      context: .
+      dockerfile: services/security/Dockerfile
+    container_name: peapod-security
+    profiles: ["full"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8081
+      DATABASE_URL: postgresql+asyncpg://peapod:peapod_dev_password@postgres:5432/peapod
+      ENVIRONMENT: development
+      # DEVELOPMENT ONLY. The service refuses to start with these values when
+      # ENVIRONMENT is production -- see services/security/app/config.py.
+      JWT_SECRET: dev-only-insecure-jwt-secret-do-not-use-in-production
+      INTERNAL_SERVICE_TOKEN: dev-only-insecure-internal-service-token
+      ACCESS_TOKEN_TTL_SECONDS: 900
+      REFRESH_TOKEN_TTL_SECONDS: 2592000
+      OTP_TTL_SECONDS: 600
+      # With no email provider key, one-time codes are printed to this
+      # container's logs instead of being emailed. Read them with:
+      #   docker compose logs -f security
+      EMAIL_FROM: no-reply@peapod.local
+    ports:
+      - "8081:8081"
+
+  # ---------------------------------------------------------------------------
+  # Node API -- the only surface the mobile app talks to.
+  # Runs under the `full` profile; otherwise run it natively.
+  # ---------------------------------------------------------------------------
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    container_name: peapod-api
+    profiles: ["full"]
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 8080
+      NODE_ENV: development
+      DATABASE_URL: postgres://peapod:peapod_dev_password@postgres:5432/peapod
+      SECURITY_URL: http://security:8081
+      INTERNAL_SERVICE_TOKEN: dev-only-insecure-internal-service-token
+      COMPUTE_URL: http://compute:8082
+      COMPUTE_ENABLED: "true"
+      # Comma-separated origins. The Expo dev client connects over the LAN, so
+      # this is permissive in development only.
+      CORS_ORIGINS: "*"
+    ports:
+      - "8080:8080"
+
+volumes:
+  postgres_data:
+    driver: local

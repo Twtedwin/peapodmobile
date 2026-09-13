@@ -1,0 +1,20 @@
+{
+  "$schemaVersion": 1,
+  "_comment": [
+    "The Peanut reward store. Tiers run from small free treats up to premium experiences, so a pod always has",
+    "something reachable to save toward. Costs are in Peanuts, not money.",
+    "",
+    "Nothing here is fulfilled automatically -- redeeming records a RewardRedemption and debits Peanuts. Wiring",
+    "real partner fulfilment is documented in SETUP-EXTERNAL-APIS.md."
+  ],
+  "items": [
+    { "id": "rw6", "type": "free", "title": "Free scoop of gelato", "emoji": "\ud83c\udf68", "category": "Food", "peanutCost": 150, "partner": "Sweet Treats", "description": "A little freebie to share." },
+    { "id": "rw7", "type": "free", "title": "Free park entry pass", "emoji": "\ud83c\udf3f", "category": "Activity", "peanutCost": 300, "partner": "National Parks", "description": "A free day out together." },
+    { "id": "rw4", "type": "discount", "title": "2-for-1 cinema tickets", "emoji": "\ud83c\udfac", "category": "Activity", "peanutCost": 500, "partner": "Cinema Plus", "description": "Cheaper nights out, on us." },
+    { "id": "rw3", "type": "discount", "title": "30% off pottery class", "emoji": "\ud83c\udfa8", "category": "Activity", "peanutCost": 800, "partner": "Studio Joo Chiat", "description": "A cheaper way to do something together." },
+    { "id": "rw1", "type": "voucher", "title": "$5 Cafe Voucher", "emoji": "\u2615", "category": "Food", "peanutCost": 600, "partner": "Dining Collective", "description": "Redeem at 40+ partner caf\u00e9s & restaurants." },
+    { "id": "rw2", "type": "voucher", "title": "$20 Travel Voucher", "emoji": "\u2708\ufe0f", "category": "Travel", "peanutCost": 2400, "partner": "Travel Co.", "description": "Toward your next Peapod-planned trip." },
+    { "id": "rw7p", "type": "premium", "title": "1 month of Peapod AI", "emoji": "\u2728", "category": "Premium", "peanutCost": 3000, "partner": "Peapod", "description": "Deeper trip planning & smart suggestions." },
+    { "id": "rw8p", "type": "premium", "title": "Luxury date night", "emoji": "\ud83e\udd42", "category": "Premium", "peanutCost": 5000, "partner": "Peapod Concierge", "description": "A curated premium experience just for the pod." }
+  ]
+}

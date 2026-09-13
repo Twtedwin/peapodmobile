@@ -1,0 +1,37 @@
+{
+  "name": "@peapod/shared",
+  "version": "1.0.0",
+  "private": true,
+  "description": "The single cross-language contract for Peapod. JSON Schemas in schemas/ are the source of truth for payload shapes; the rule and catalog JSON in data/ is the source of truth for every game rule, threshold, and catalog. TypeScript types live here by hand, and the Python and Rust models are generated from the schemas, so the mobile app, Node API, Python security service, and Rust compute service can never disagree.",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "//": "Metro (React Native) is pointed at TypeScript source so the Expo app does not need a build step before it can run, while Node consumers get the compiled output.",
+      "react-native": "./src/index.ts",
+      "default": "./dist/src/index.js"
+    },
+    "./data/*": "./data/*",
+    "./schemas/*": "./schemas/*"
+  },
+  "files": [
+    "dist",
+    "src",
+    "schemas",
+    "data"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "//--- codegen ---": "Regenerate the Python (Pydantic) and Rust (serde) models from schemas/*.schema.json. Run after editing any schema.",
+    "codegen": "node scripts/codegen.mjs",
+    "codegen:check": "node scripts/codegen.mjs --check",
+    "//--- data validation ---": "Fail fast if any rule or catalog file stopped being valid JSON.",
+    "validate:data": "node scripts/validate-data.mjs"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2"
+  }
+}

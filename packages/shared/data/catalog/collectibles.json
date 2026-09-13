@@ -1,0 +1,38 @@
+{
+  "$schemaVersion": 1,
+  "_comment": [
+    "Collectibles a pod can unlock. Every one is earned by something real: visiting a place, completing a trip,",
+    "or reaching a milestone. None can be bought, and none unlock from merely saving a dream -- that distinction",
+    "is what makes the shelf in the 3D world worth looking at.",
+    "",
+    "'unlockedBy' tells the API which event grants it. The catalog ships unlocked=false for everyone; a pod's",
+    "actual unlocks live in the unlocked_collectibles table."
+  ],
+  "categories": ["Place", "Experience", "Achievement", "Memory", "Travel", "Milestone", "Reward"],
+  "rarities": ["Common", "Rare", "Epic"],
+  "items": [
+    { "id": "merlion", "name": "Merlion", "emoji": "\ud83e\udd81", "category": "Place", "rarity": "Common", "unlockedBy": { "kind": "checkin", "placeId": "merlion" }, "earnedByCopy": "Visited the Merlion, Singapore" },
+    { "id": "uss", "name": "Universal Studios", "emoji": "\ud83c\udfa2", "category": "Experience", "rarity": "Common", "unlockedBy": { "kind": "checkin", "placeId": "uss" }, "earnedByCopy": "Visited Universal Studios Singapore" },
+    { "id": "zoo", "name": "Singapore Zoo", "emoji": "\ud83d\udc05", "category": "Place", "rarity": "Common", "unlockedBy": { "kind": "checkin", "placeId": "zoo" }, "earnedByCopy": "Visited the Singapore Zoo" },
+    { "id": "gardens", "name": "Gardens by the Bay", "emoji": "\ud83c\udf33", "category": "Place", "rarity": "Common", "unlockedBy": { "kind": "checkin", "placeId": "gardens" }, "earnedByCopy": "Visited Gardens by the Bay" },
+    { "id": "jp_torii", "name": "Torii Gate", "emoji": "\u26e9\ufe0f", "category": "Travel", "rarity": "Rare", "unlockedBy": { "kind": "trip_completed", "countryContains": "japan" }, "earnedByCopy": "Completed the Japan trip" },
+    { "id": "uk_bigben", "name": "Big Ben", "emoji": "\ud83d\udd70\ufe0f", "category": "Travel", "rarity": "Rare", "unlockedBy": { "kind": "trip_completed", "countryContains": "united kingdom" }, "earnedByCopy": "Completed the UK trip" },
+    { "id": "thailand_wat", "name": "Temple Spire", "emoji": "\ud83d\uded5", "category": "Travel", "rarity": "Rare", "unlockedBy": { "kind": "trip_completed", "countryContains": "thailand" }, "earnedByCopy": "Completed the Thailand trip" },
+    { "id": "malaysia_petronas", "name": "Petronas Towers", "emoji": "\ud83c\udfd9\ufe0f", "category": "Travel", "rarity": "Rare", "unlockedBy": { "kind": "trip_completed", "countryContains": "malaysia" }, "earnedByCopy": "Completed the Malaysia trip" },
+    { "id": "first_adventure", "name": "First Adventure", "emoji": "\ud83c\udfc6", "category": "Achievement", "rarity": "Rare", "unlockedBy": { "kind": "trip_count", "atLeast": 1 }, "earnedByCopy": "Completed your first shared trip" },
+    { "id": "globe_trotters", "name": "Globe Trotters", "emoji": "\ud83c\udf0d", "category": "Achievement", "rarity": "Epic", "unlockedBy": { "kind": "country_count", "atLeast": 3 }, "earnedByCopy": "Visited 3 countries together" },
+    { "id": "three_years", "name": "Three Years Strong", "emoji": "\ud83d\udc9d", "category": "Milestone", "rarity": "Rare", "unlockedBy": { "kind": "journey_days", "atLeast": 1095 }, "earnedByCopy": "Celebrated your 3rd anniversary" },
+    { "id": "first_peanuts", "name": "First Peanuts", "emoji": "\ud83e\udd5c", "category": "Reward", "rarity": "Common", "unlockedBy": { "kind": "peanuts_earned", "atLeast": 1 }, "earnedByCopy": "Earned your first Peanuts" },
+    { "id": "lamp", "name": "Cozy Lamp", "emoji": "\ud83e\ude94", "category": "Reward", "rarity": "Common", "unlockedBy": { "kind": "starter" }, "earnedByCopy": "Starter decor" }
+  ],
+  "checkInPlaces": {
+    "_comment": "Curated landmarks a pod can check in at, each optionally granting a collectible. Used by the memory check-in flow.",
+    "items": [
+      { "id": "merlion", "name": "The Merlion", "emoji": "\ud83e\udd81", "city": "Singapore", "collectibleId": "merlion", "memoryTitle": "Our Merlion Visit" },
+      { "id": "uss", "name": "Universal Studios Singapore", "emoji": "\ud83c\udfa2", "city": "Singapore", "collectibleId": "uss", "memoryTitle": "A day at Universal Studios" },
+      { "id": "zoo", "name": "Singapore Zoo", "emoji": "\ud83d\udc05", "city": "Singapore", "collectibleId": "zoo", "memoryTitle": "A day at the Zoo" },
+      { "id": "gardens", "name": "Gardens by the Bay", "emoji": "\ud83c\udf33", "city": "Singapore", "collectibleId": "gardens", "memoryTitle": "Wandering the Supertrees" },
+      { "id": "eastcoast", "name": "East Coast Park", "emoji": "\ud83c\udf05", "city": "Singapore", "collectibleId": null, "memoryTitle": "Sunset at East Coast" }
+    ]
+  }
+}

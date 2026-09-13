@@ -1,0 +1,975 @@
+{
+  "$schemaVersion": 1,
+  "_comment": [
+    "THE TRAVEL DATASET. This is the search space the Rust itinerary generator walks when it builds a trip:",
+    "pick a country, pick 1-3 of its cities, pick activities whose tags overlap the pod's travel personalities,",
+    "pick one hotel per night at the pod's budget tier, and chain the cities together with transport_to legs.",
+    "",
+    "WHERE IT CAME FROM",
+    "  - src/lib/travelDataset.js covered five 'focus countries' in depth: Japan, United Kingdom, USA, China and",
+    "    Australia. Activity ids, names, emoji, durations and style tags for those five are ported verbatim.",
+    "  - src/lib/peapodData.js (the destinationContent map) covered the Asian short-haul destinations the Decide",
+    "    Together queue keeps referencing: Thailand, Malaysia, Vietnam, Taiwan, South Korea, Indonesia, Singapore",
+    "    and Hong Kong. Those activity titles, emoji and notes are ported from there.",
+    "  - Region coordinates come from src/lib/countryStates.js (real lat/lng, used to place the dots on the",
+    "    region-picker map) for Japan, USA, China, Australia and the UK. Regions for the other eight countries",
+    "    were taken from the countryRegions map in peapodData.js and given real coordinates.",
+    "",
+    "MONEY",
+    "  Every *_minor field is an INTEGER in the MINOR UNIT of that country's own currency, never a float and",
+    "  never a string. Which is why each country carries a currency code: 3000 under Japan is 3000 yen, 3000",
+    "  under the UK is 3000 pence. Currencies with no sub-unit in practice use an exponent of 0, so one minor",
+    "  unit is one whole unit:",
+    "    exponent 0 (minor unit == whole unit) : JPY, KRW, VND, IDR",
+    "    exponent 2 (minor unit == 1/100)      : GBP, USD, CNY, AUD, THB, MYR, TWD, HKD, SGD",
+    "  All costs are PER PERSON. flight_cost_minor_by_tier is the return fare from the pod's home city",
+    "  (Singapore) to that country's main hub, so Singapore's own entry is legitimately zero.",
+    "",
+    "JUDGEMENT CALLS, so nobody has to guess later",
+    "  1. The original files stored prices as plain Singapore-dollar demo numbers with no currency attached.",
+    "     Converting them blindly would have produced absurd local prices, so every cost here is a realistic",
+    "     local-currency price anchored to the original figure. Where the original figure was clearly a demo",
+    "     placeholder that made no sense locally (Kyoto to Osaka was priced at roughly ten times the real JR",
+    "     fare) the real fare is used instead.",
+    "  2. travelDataset.js had two copy-paste bugs that produced a literal tag of \"free\", which is not in the",
+    "     tag vocabulary: lv_bellagio and london_british. Both are genuinely free to enter, so they carry the",
+    "     'budget' tag here instead.",
+    "  3. The eight short-haul countries had activities in peapodData.js but no hotels and no intercity",
+    "     transport at all. Those hotels and transport legs are invented but plausible, and every one of those",
+    "     countries says so in its own _comment.",
+    "  4. Chengdu had no mid-tier hotel in the source; one was added so all three tiers exist everywhere.",
+    "  5. Singapore is a city-state. Its three 'cities' are really the districts the original app treated as",
+    "     destinations (Marina Bay, Sentosa, Joo Chiat), and its transport legs are MRT rides.",
+    "",
+    "VOCABULARIES (fixed - the generator matches against these, so do not invent new members)",
+    "  kind : flight | transfer | hotel | activity | meal | train | free",
+    "  tags : relaxed fast adventure luxury budget food nature culture shopping family romantic photo night",
+    "         themepark history local",
+    "  The tag list is exactly the travelPersonalities id list, which is what lets the generator score an",
+    "  activity against a pod's declared travel style with a plain set intersection."
+  ],
+
+  "countries": [
+    {
+      "id": "japan",
+      "name": "Japan",
+      "emoji": "\ud83d\uddfe",
+      "currency": "JPY",
+      "_comment": "Ported from travelDataset.js COUNTRIES.japan. Regions are the 15 prefecture-level dots from countryStates.js. Prices are real yen: the Tokyo-Kyoto Shinkansen at 13000 is the actual reserved-seat fare, 18000 is the Green Car.",
+      "flight_cost_minor_by_tier": { "budget": 45000, "mid": 80000, "luxury": 190000 },
+      "regions": [
+        { "id": "hokkaido", "name": "Hokkaido", "latitude": 43.5, "longitude": 142.5 },
+        { "id": "aomori", "name": "Aomori", "latitude": 40.8, "longitude": 140.7 },
+        { "id": "sendai", "name": "Sendai", "latitude": 38.3, "longitude": 140.9 },
+        { "id": "niigata", "name": "Niigata", "latitude": 37.9, "longitude": 139.0 },
+        { "id": "nagano", "name": "Nagano", "latitude": 36.6, "longitude": 138.2 },
+        { "id": "tokyo", "name": "Tokyo", "latitude": 35.68, "longitude": 139.69 },
+        { "id": "yokohama", "name": "Yokohama", "latitude": 35.44, "longitude": 139.62 },
+        { "id": "kanazawa", "name": "Kanazawa", "latitude": 36.56, "longitude": 136.66 },
+        { "id": "nagoya", "name": "Nagoya", "latitude": 35.17, "longitude": 136.91 },
+        { "id": "kyoto", "name": "Kyoto", "latitude": 35.01, "longitude": 135.77 },
+        { "id": "osaka", "name": "Osaka", "latitude": 34.69, "longitude": 135.5 },
+        { "id": "kobe", "name": "Kobe", "latitude": 34.69, "longitude": 135.19 },
+        { "id": "hiroshima", "name": "Hiroshima", "latitude": 34.39, "longitude": 132.46 },
+        { "id": "fukuoka", "name": "Fukuoka", "latitude": 33.59, "longitude": 130.4 },
+        { "id": "okinawa", "name": "Okinawa", "latitude": 26.33, "longitude": 127.8 }
+      ],
+      "cities": [
+        {
+          "id": "tokyo",
+          "name": "Tokyo",
+          "region": "tokyo",
+          "latitude": 35.68,
+          "longitude": 139.76,
+          "activities": [
+            { "id": "tokyo_tsukiji", "title": "Tsukiji Outer Market breakfast", "kind": "meal", "emoji": "\ud83c\udf63", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1500, "mid": 3000, "luxury": 8000 }, "tags": ["food", "local", "photo"] },
+            { "id": "tokyo_shibuya_cross", "title": "Shibuya Crossing", "kind": "activity", "emoji": "\ud83d\udea6", "duration_minutes": 45, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "local", "budget"] },
+            { "id": "tokyo_shibuya_sky", "title": "Shibuya Sky", "kind": "activity", "emoji": "\ud83c\udf06", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 2200, "mid": 2600, "luxury": 3400 }, "tags": ["photo", "romantic"] },
+            { "id": "tokyo_meiji", "title": "Meiji Jingu", "kind": "activity", "emoji": "\u26e9\ufe0f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "relaxed", "history"] },
+            { "id": "tokyo_sensoji", "title": "Senso-ji", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "history", "photo"] },
+            { "id": "tokyo_skytree", "title": "Tokyo Skytree", "kind": "activity", "emoji": "\ud83d\uddfc", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 2100, "mid": 3100, "luxury": 4400 }, "tags": ["photo", "family"] },
+            { "id": "tokyo_teamlab_p", "title": "teamLab Planets", "kind": "activity", "emoji": "\ud83c\udf0a", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 3600, "mid": 3800, "luxury": 4800 }, "tags": ["photo", "romantic", "family"] },
+            { "id": "tokyo_disneysea", "title": "Tokyo DisneySea", "kind": "activity", "emoji": "\ud83c\udfa2", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 7900, "mid": 9400, "luxury": 10900 }, "tags": ["themepark", "family", "romantic"] },
+            { "id": "tokyo_shinjuku_gyoen", "title": "Shinjuku Gyoen", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 500, "mid": 500, "luxury": 500 }, "tags": ["nature", "relaxed", "romantic"] },
+            { "id": "tokyo_omoide", "title": "Omoide Yokocho", "kind": "meal", "emoji": "\ud83c\udf62", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 2500, "mid": 3500, "luxury": 6000 }, "tags": ["food", "local", "night"] },
+            { "id": "tokyo_ginza", "title": "Ginza", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "luxury"] },
+            { "id": "tokyo_hakone_dt", "title": "Hakone & Mt Fuji day trip", "kind": "activity", "emoji": "\u2668\ufe0f", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 6000, "mid": 9000, "luxury": 18000 }, "tags": ["nature", "romantic", "relaxed"] }
+          ],
+          "hotels": [
+            { "id": "tokyo_hotel_budget", "name": "Asakusa View Hotel", "tier": "budget", "night_cost_minor": 9000, "emoji": "\ud83c\udfe8" },
+            { "id": "tokyo_hotel_mid", "name": "Shibuya Excel Hotel Tokyu", "tier": "mid", "night_cost_minor": 20000, "emoji": "\ud83c\udfe8" },
+            { "id": "tokyo_hotel_luxury", "name": "Park Hyatt Tokyo", "tier": "luxury", "night_cost_minor": 58000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "kyoto", "mode": "train", "title": "Shinkansen to Kyoto", "duration_minutes": 135, "cost_minor_by_tier": { "budget": 13000, "mid": 13000, "luxury": 18000 }, "emoji": "\ud83d\ude84" },
+            { "city_id": "osaka", "mode": "train", "title": "Shinkansen to Osaka", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 14700, "mid": 14700, "luxury": 19500 }, "emoji": "\ud83d\ude84" }
+          ]
+        },
+        {
+          "id": "kyoto",
+          "name": "Kyoto",
+          "region": "kyoto",
+          "latitude": 35.01,
+          "longitude": 135.77,
+          "activities": [
+            { "id": "kyoto_fushimi_inari", "title": "Fushimi Inari torii gates", "kind": "activity", "emoji": "\u26e9\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "photo", "adventure"] },
+            { "id": "kyoto_kiyomizu", "title": "Kiyomizu-dera", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 400, "mid": 500, "luxury": 500 }, "tags": ["culture", "history"] },
+            { "id": "kyoto_arashiyama", "title": "Arashiyama Bamboo Grove", "kind": "activity", "emoji": "\ud83c\udf8b", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "photo"] },
+            { "id": "kyoto_kinkakuji", "title": "Kinkaku-ji", "kind": "activity", "emoji": "\ud83c\udfef", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 500, "mid": 500, "luxury": 500 }, "tags": ["culture", "photo"] },
+            { "id": "kyoto_gion", "title": "Gion", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "romantic", "local"] },
+            { "id": "kyoto_nijo", "title": "Nijo Castle", "kind": "activity", "emoji": "\ud83c\udff0", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 800, "mid": 1300, "luxury": 1300 }, "tags": ["history", "culture"] },
+            { "id": "kyoto_philosopher", "title": "Philosopher's Path", "kind": "activity", "emoji": "\ud83c\udf38", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "romantic", "relaxed"] },
+            { "id": "kyoto_nishiki", "title": "Nishiki Market", "kind": "meal", "emoji": "\ud83c\udf64", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1000, "mid": 2000, "luxury": 4000 }, "tags": ["food", "local", "shopping"] },
+            { "id": "kyoto_tea_gion", "title": "Tea ceremony in Gion", "kind": "activity", "emoji": "\ud83c\udf75", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 5000, "mid": 6000, "luxury": 12000 }, "tags": ["culture", "romantic", "relaxed"] },
+            { "id": "kyoto_kaiseki", "title": "Kaiseki dinner", "kind": "meal", "emoji": "\ud83c\udf71", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 8000, "mid": 14000, "luxury": 30000 }, "tags": ["food", "luxury", "romantic"] },
+            { "id": "kyoto_nara_dt", "title": "Nara day trip", "kind": "activity", "emoji": "\ud83e\udd8c", "duration_minutes": 300, "cost_minor_by_tier": { "budget": 1500, "mid": 2500, "luxury": 6000 }, "tags": ["culture", "history", "family"] }
+          ],
+          "hotels": [
+            { "id": "kyoto_hotel_budget", "name": "Khaosan Kyoto", "tier": "budget", "night_cost_minor": 4500, "emoji": "\ud83c\udfe8" },
+            { "id": "kyoto_hotel_mid", "name": "Hotel Granvia Kyoto", "tier": "mid", "night_cost_minor": 20000, "emoji": "\ud83c\udfe8" },
+            { "id": "kyoto_hotel_luxury", "name": "The Ritz-Carlton Kyoto", "tier": "luxury", "night_cost_minor": 78000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "osaka", "mode": "train", "title": "JR Special Rapid to Osaka", "duration_minutes": 30, "cost_minor_by_tier": { "budget": 580, "mid": 580, "luxury": 1600 }, "emoji": "\ud83d\ude86" },
+            { "city_id": "tokyo", "mode": "train", "title": "Shinkansen back to Tokyo", "duration_minutes": 135, "cost_minor_by_tier": { "budget": 13000, "mid": 13000, "luxury": 18000 }, "emoji": "\ud83d\ude84" }
+          ]
+        },
+        {
+          "id": "osaka",
+          "name": "Osaka",
+          "region": "osaka",
+          "latitude": 34.69,
+          "longitude": 135.5,
+          "activities": [
+            { "id": "osaka_dotonbori", "title": "Dotonbori", "kind": "activity", "emoji": "\ud83c\udf03", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["night", "food", "photo"] },
+            { "id": "osaka_castle", "title": "Osaka Castle", "kind": "activity", "emoji": "\ud83c\udfef", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 600, "mid": 600, "luxury": 600 }, "tags": ["history", "photo"] },
+            { "id": "osaka_kuromon", "title": "Kuromon Market", "kind": "meal", "emoji": "\ud83c\udf64", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1000, "mid": 2000, "luxury": 4000 }, "tags": ["food", "local"] },
+            { "id": "osaka_usj", "title": "Universal Studios Japan", "kind": "activity", "emoji": "\ud83c\udfa2", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 8600, "mid": 9800, "luxury": 10900 }, "tags": ["themepark", "family"] },
+            { "id": "osaka_umeda_sky", "title": "Umeda Sky Building", "kind": "activity", "emoji": "\ud83c\udf06", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1500, "mid": 1500, "luxury": 1500 }, "tags": ["photo", "romantic"] },
+            { "id": "osaka_aquarium", "title": "Osaka Aquarium Kaiyukan", "kind": "activity", "emoji": "\ud83d\udc20", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 2700, "mid": 2700, "luxury": 2700 }, "tags": ["family", "photo"] },
+            { "id": "osaka_shinsaibashi", "title": "Shinsaibashi", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping"] },
+            { "id": "osaka_sumiyoshi", "title": "Sumiyoshi Taisha", "kind": "activity", "emoji": "\u26e9\ufe0f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "history"] },
+            { "id": "osaka_tsutenkaku", "title": "Tsutenkaku & Shinsekai", "kind": "activity", "emoji": "\ud83d\uddfc", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1000, "mid": 1000, "luxury": 1000 }, "tags": ["local", "history", "night"] },
+            { "id": "osaka_street_food", "title": "Street food in Dotonbori", "kind": "meal", "emoji": "\ud83c\udf61", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1500, "mid": 3000, "luxury": 6000 }, "tags": ["food", "night", "local"] }
+          ],
+          "hotels": [
+            { "id": "osaka_hotel_budget", "name": "J-Hoppers Osaka", "tier": "budget", "night_cost_minor": 4000, "emoji": "\ud83c\udfe8" },
+            { "id": "osaka_hotel_mid", "name": "Cross Hotel Osaka", "tier": "mid", "night_cost_minor": 16000, "emoji": "\ud83c\udfe8" },
+            { "id": "osaka_hotel_luxury", "name": "Swissotel Nankai Osaka", "tier": "luxury", "night_cost_minor": 32000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "hiroshima", "mode": "train", "title": "Sanyo Shinkansen to Hiroshima", "duration_minutes": 100, "cost_minor_by_tier": { "budget": 10600, "mid": 10600, "luxury": 14500 }, "emoji": "\ud83d\ude84" },
+            { "city_id": "kyoto", "mode": "train", "title": "JR Special Rapid to Kyoto", "duration_minutes": 30, "cost_minor_by_tier": { "budget": 580, "mid": 580, "luxury": 1600 }, "emoji": "\ud83d\ude86" }
+          ]
+        },
+        {
+          "id": "hiroshima",
+          "name": "Hiroshima",
+          "region": "hiroshima",
+          "latitude": 34.39,
+          "longitude": 132.46,
+          "activities": [
+            { "id": "hiro_peace_park", "title": "Peace Memorial Park", "kind": "activity", "emoji": "\ud83d\udd4a\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture", "relaxed"] },
+            { "id": "hiro_dome", "title": "Atomic Bomb Dome", "kind": "activity", "emoji": "\ud83c\udfda\ufe0f", "duration_minutes": 45, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "photo"] },
+            { "id": "hiro_museum", "title": "Peace Memorial Museum", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 200, "mid": 200, "luxury": 200 }, "tags": ["history", "culture"] },
+            { "id": "hiro_miyajima", "title": "Miyajima Island", "kind": "activity", "emoji": "\u26e9\ufe0f", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 1200, "mid": 1200, "luxury": 1200 }, "tags": ["nature", "culture", "photo"] },
+            { "id": "hiro_itsukushima", "title": "Itsukushima Shrine", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 500, "mid": 500, "luxury": 500 }, "tags": ["culture", "photo", "romantic"] },
+            { "id": "hiro_misen", "title": "Mount Misen", "kind": "activity", "emoji": "\u26f0\ufe0f", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 2000, "luxury": 2000 }, "tags": ["adventure", "nature"] },
+            { "id": "hiro_castle", "title": "Hiroshima Castle", "kind": "activity", "emoji": "\ud83c\udfef", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 370, "mid": 370, "luxury": 370 }, "tags": ["history"] },
+            { "id": "hiro_okonomimura", "title": "Okonomimura okonomiyaki", "kind": "meal", "emoji": "\ud83e\udd5e", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 900, "mid": 1400, "luxury": 2500 }, "tags": ["food", "local", "budget"] },
+            { "id": "hiro_shukkeien", "title": "Shukkeien Garden", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 260, "mid": 260, "luxury": 260 }, "tags": ["nature", "relaxed"] }
+          ],
+          "hotels": [
+            { "id": "hiro_hotel_budget", "name": "Chisun Inn Hiroshima", "tier": "budget", "night_cost_minor": 6000, "emoji": "\ud83c\udfe8" },
+            { "id": "hiro_hotel_mid", "name": "Hotel Granvia Hiroshima", "tier": "mid", "night_cost_minor": 15000, "emoji": "\ud83c\udfe8" },
+            { "id": "hiro_hotel_luxury", "name": "Rihga Royal Hiroshima", "tier": "luxury", "night_cost_minor": 27000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "osaka", "mode": "train", "title": "Sanyo Shinkansen back to Osaka", "duration_minutes": 100, "cost_minor_by_tier": { "budget": 10600, "mid": 10600, "luxury": 14500 }, "emoji": "\ud83d\ude84" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "united-kingdom",
+      "name": "United Kingdom",
+      "emoji": "\ud83c\uddec\ud83c\udde7",
+      "currency": "GBP",
+      "_comment": "Ported from travelDataset.js COUNTRIES.uk, plus the hand-crafted London and Edinburgh days from ukItinerarySeed in peapodData.js (Dishoom, the West End show, The Witchery, the Highlands tour). Regions are the 15 real dots from countryStates.js. Only four of the seventeen source cities are carried over; the others had thinner pools and can be added later without a schema change.",
+      "flight_cost_minor_by_tier": { "budget": 48000, "mid": 62000, "luxury": 165000 },
+      "regions": [
+        { "id": "scotland", "name": "Scotland", "latitude": 56.0, "longitude": -4.0 },
+        { "id": "newcastle", "name": "Newcastle", "latitude": 54.97, "longitude": -1.61 },
+        { "id": "lake-district", "name": "Lake District", "latitude": 54.3, "longitude": -3.1 },
+        { "id": "manchester", "name": "Manchester", "latitude": 53.48, "longitude": -2.24 },
+        { "id": "liverpool", "name": "Liverpool", "latitude": 53.4, "longitude": -2.99 },
+        { "id": "yorkshire", "name": "Yorkshire", "latitude": 54.0, "longitude": -1.5 },
+        { "id": "wales", "name": "Wales", "latitude": 52.0, "longitude": -3.5 },
+        { "id": "cardiff", "name": "Cardiff", "latitude": 51.48, "longitude": -3.18 },
+        { "id": "birmingham", "name": "Birmingham", "latitude": 52.49, "longitude": -1.9 },
+        { "id": "cotswolds", "name": "Cotswolds", "latitude": 51.8, "longitude": -1.8 },
+        { "id": "oxford", "name": "Oxford", "latitude": 51.75, "longitude": -1.26 },
+        { "id": "london", "name": "London", "latitude": 51.51, "longitude": -0.13 },
+        { "id": "brighton", "name": "Brighton", "latitude": 50.84, "longitude": -0.14 },
+        { "id": "cornwall", "name": "Cornwall", "latitude": 50.4, "longitude": -4.8 },
+        { "id": "northern-ireland", "name": "Northern Ireland", "latitude": 54.6, "longitude": -6.0 }
+      ],
+      "cities": [
+        {
+          "id": "london",
+          "name": "London",
+          "region": "london",
+          "latitude": 51.51,
+          "longitude": -0.13,
+          "activities": [
+            { "id": "london_british", "title": "The British Museum", "kind": "activity", "emoji": "\ud83c\udffa", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture", "budget"] },
+            { "id": "london_tower", "title": "Tower of London", "kind": "activity", "emoji": "\ud83c\udfef", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 3300, "mid": 3480, "luxury": 3480 }, "tags": ["history", "culture", "family"] },
+            { "id": "london_eye", "title": "The London Eye", "kind": "activity", "emoji": "\ud83c\udfa1", "duration_minutes": 45, "cost_minor_by_tier": { "budget": 2900, "mid": 3400, "luxury": 4400 }, "tags": ["photo", "romantic", "family"] },
+            { "id": "london_borough", "title": "Borough Market", "kind": "meal", "emoji": "\ud83e\udd6a", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 800, "mid": 2000, "luxury": 4000 }, "tags": ["food", "local", "budget"] },
+            { "id": "london_parliament", "title": "Houses of Parliament & Big Ben", "kind": "activity", "emoji": "\ud83d\udd70\ufe0f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 2800, "luxury": 2800 }, "tags": ["history", "photo"] },
+            { "id": "london_tate_modern", "title": "Tate Modern", "kind": "activity", "emoji": "\ud83d\uddbc\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "photo"] },
+            { "id": "london_camden", "title": "Camden Market", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "food", "local"] },
+            { "id": "london_hyde", "title": "Hyde Park", "kind": "activity", "emoji": "\ud83c\udf33", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "relaxed", "family"] },
+            { "id": "london_portobello", "title": "Portobello Road Market", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "local", "photo"] },
+            { "id": "london_shard", "title": "The Shard", "kind": "activity", "emoji": "\ud83c\udfd9\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 3200, "mid": 3800, "luxury": 4500 }, "tags": ["photo", "romantic"] },
+            { "id": "london_dishoom", "title": "Dinner at Dishoom Covent Garden", "kind": "meal", "emoji": "\ud83c\udf5b", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 2500, "mid": 3500, "luxury": 7000 }, "tags": ["food", "local", "romantic"] },
+            { "id": "london_westend", "title": "West End theatre show", "kind": "activity", "emoji": "\ud83c\udfad", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 4500, "mid": 9000, "luxury": 17500 }, "tags": ["culture", "romantic", "night"] }
+          ],
+          "hotels": [
+            { "id": "london_hotel_budget", "name": "Generator London", "tier": "budget", "night_cost_minor": 4500, "emoji": "\ud83c\udfe8" },
+            { "id": "london_hotel_mid", "name": "citizenM Tower of London", "tier": "mid", "night_cost_minor": 22000, "emoji": "\ud83c\udfe8" },
+            { "id": "london_hotel_luxury", "name": "The Savoy", "tier": "luxury", "night_cost_minor": 70000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "edinburgh", "mode": "train", "title": "LNER Azuma to Edinburgh Waverley", "duration_minutes": 260, "cost_minor_by_tier": { "budget": 6500, "mid": 9000, "luxury": 18000 }, "emoji": "\ud83d\ude86" },
+            { "city_id": "york", "mode": "train", "title": "LNER to York", "duration_minutes": 110, "cost_minor_by_tier": { "budget": 3500, "mid": 5500, "luxury": 12000 }, "emoji": "\ud83d\ude86" },
+            { "city_id": "oxford", "mode": "train", "title": "GWR to Oxford", "duration_minutes": 55, "cost_minor_by_tier": { "budget": 1500, "mid": 2800, "luxury": 4500 }, "emoji": "\ud83d\ude86" }
+          ]
+        },
+        {
+          "id": "edinburgh",
+          "name": "Edinburgh",
+          "region": "scotland",
+          "latitude": 55.95,
+          "longitude": -3.19,
+          "activities": [
+            { "id": "edi_castle", "title": "Edinburgh Castle", "kind": "activity", "emoji": "\ud83c\udff0", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 1950, "mid": 1950, "luxury": 1950 }, "tags": ["history", "culture", "photo"] },
+            { "id": "edi_royal_mile", "title": "Royal Mile walk", "kind": "activity", "emoji": "\ud83d\udee3\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture", "local"] },
+            { "id": "edi_arthur", "title": "Climb Arthur's Seat", "kind": "activity", "emoji": "\u26f0\ufe0f", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["adventure", "nature", "photo"] },
+            { "id": "edi_holyrood", "title": "Holyrood Palace", "kind": "activity", "emoji": "\ud83c\udff0", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1950, "mid": 1950, "luxury": 1950 }, "tags": ["history", "culture", "romantic"] },
+            { "id": "edi_calton", "title": "Calton Hill", "kind": "activity", "emoji": "\ud83c\udfd4\ufe0f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "romantic", "nature"] },
+            { "id": "edi_nms", "title": "National Museum of Scotland", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "history", "family"] },
+            { "id": "edi_witchery", "title": "Dinner at The Witchery", "kind": "meal", "emoji": "\ud83d\udd6f\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 6000, "mid": 9500, "luxury": 16000 }, "tags": ["food", "luxury", "romantic"] },
+            { "id": "edi_ghost", "title": "Ghost tour of the vaults", "kind": "activity", "emoji": "\ud83d\udc7b", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1500, "mid": 1800, "luxury": 2500 }, "tags": ["night", "culture", "adventure"] },
+            { "id": "edi_highlands_dt", "title": "Highlands & Loch Ness day tour", "kind": "activity", "emoji": "\ud83c\udfd4\ufe0f", "duration_minutes": 600, "cost_minor_by_tier": { "budget": 6500, "mid": 8000, "luxury": 12000 }, "tags": ["nature", "adventure", "photo"] }
+          ],
+          "hotels": [
+            { "id": "edi_hotel_budget", "name": "Castle Rock Hostel", "tier": "budget", "night_cost_minor": 3500, "emoji": "\ud83c\udfe8" },
+            { "id": "edi_hotel_mid", "name": "Radisson Collection Royal Mile", "tier": "mid", "night_cost_minor": 20000, "emoji": "\ud83c\udfe8" },
+            { "id": "edi_hotel_luxury", "name": "The Balmoral", "tier": "luxury", "night_cost_minor": 45000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "london", "mode": "train", "title": "LNER Azuma back to King's Cross", "duration_minutes": 260, "cost_minor_by_tier": { "budget": 6500, "mid": 9000, "luxury": 18000 }, "emoji": "\ud83d\ude86" },
+            { "city_id": "york", "mode": "train", "title": "LNER to York", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 3800, "mid": 6000, "luxury": 13000 }, "emoji": "\ud83d\ude86" }
+          ]
+        },
+        {
+          "id": "york",
+          "name": "York",
+          "region": "yorkshire",
+          "latitude": 53.96,
+          "longitude": -1.08,
+          "activities": [
+            { "id": "york_minster", "title": "York Minster", "kind": "activity", "emoji": "\u26ea", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1800, "mid": 1800, "luxury": 1800 }, "tags": ["history", "culture", "photo"] },
+            { "id": "york_shambles", "title": "The Shambles", "kind": "activity", "emoji": "\ud83c\udfda\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "photo", "history"] },
+            { "id": "york_walls", "title": "York City Walls walk", "kind": "activity", "emoji": "\ud83e\uddf1", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "adventure", "photo"] },
+            { "id": "york_jorvik", "title": "Jorvik Viking Centre", "kind": "activity", "emoji": "\u2694\ufe0f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 1600, "mid": 1600, "luxury": 1600 }, "tags": ["history", "family"] },
+            { "id": "york_railway_museum", "title": "National Railway Museum", "kind": "activity", "emoji": "\ud83d\ude82", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "family", "budget"] },
+            { "id": "york_ghost", "title": "Ghost walk", "kind": "activity", "emoji": "\ud83d\udc7b", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1200, "mid": 1200, "luxury": 1200 }, "tags": ["night", "culture", "adventure"] },
+            { "id": "york_bettys", "title": "Bettys Cafe Tea Rooms", "kind": "meal", "emoji": "\ud83e\uded6", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1400, "mid": 2200, "luxury": 4000 }, "tags": ["food", "local", "history"] }
+          ],
+          "hotels": [
+            { "id": "york_hotel_budget", "name": "HI York", "tier": "budget", "night_cost_minor": 3000, "emoji": "\ud83c\udfe8" },
+            { "id": "york_hotel_mid", "name": "Hotel Indigo York", "tier": "mid", "night_cost_minor": 13000, "emoji": "\ud83c\udfe8" },
+            { "id": "york_hotel_luxury", "name": "The Grand Hotel York", "tier": "luxury", "night_cost_minor": 24000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "london", "mode": "train", "title": "LNER back to King's Cross", "duration_minutes": 110, "cost_minor_by_tier": { "budget": 3500, "mid": 5500, "luxury": 12000 }, "emoji": "\ud83d\ude86" },
+            { "city_id": "edinburgh", "mode": "train", "title": "LNER to Edinburgh", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 3800, "mid": 6000, "luxury": 13000 }, "emoji": "\ud83d\ude86" }
+          ]
+        },
+        {
+          "id": "oxford",
+          "name": "Oxford",
+          "region": "oxford",
+          "latitude": 51.75,
+          "longitude": -1.26,
+          "activities": [
+            { "id": "ox_bodleian", "title": "Bodleian Library", "kind": "activity", "emoji": "\ud83d\udcda", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1500, "mid": 1500, "luxury": 1500 }, "tags": ["history", "culture"] },
+            { "id": "ox_radcliffe", "title": "Radcliffe Camera", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 45, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "photo", "culture"] },
+            { "id": "ox_christchurch", "title": "Christ Church College", "kind": "activity", "emoji": "\ud83c\udf93", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1800, "mid": 1800, "luxury": 1800 }, "tags": ["history", "culture", "photo"] },
+            { "id": "ox_ashmolean", "title": "Ashmolean Museum", "kind": "activity", "emoji": "\ud83c\udffa", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "history"] },
+            { "id": "ox_punting", "title": "Punting on the Cherwell", "kind": "activity", "emoji": "\ud83d\udef6", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 2500, "mid": 2500, "luxury": 4000 }, "tags": ["romantic", "relaxed", "photo"] },
+            { "id": "ox_botanic", "title": "Oxford Botanic Garden", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 800, "mid": 800, "luxury": 800 }, "tags": ["nature", "relaxed", "romantic"] },
+            { "id": "ox_turf", "title": "Lunch at The Turf Tavern", "kind": "meal", "emoji": "\ud83c\udf7a", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1200, "mid": 1800, "luxury": 3000 }, "tags": ["food", "local", "history"] }
+          ],
+          "hotels": [
+            { "id": "ox_hotel_budget", "name": "HI Oxford", "tier": "budget", "night_cost_minor": 3500, "emoji": "\ud83c\udfe8" },
+            { "id": "ox_hotel_mid", "name": "Vanbrugh House", "tier": "mid", "night_cost_minor": 18000, "emoji": "\ud83c\udfe8" },
+            { "id": "ox_hotel_luxury", "name": "The Randolph Hotel", "tier": "luxury", "night_cost_minor": 32000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "london", "mode": "train", "title": "GWR back to Paddington", "duration_minutes": 55, "cost_minor_by_tier": { "budget": 1500, "mid": 2800, "luxury": 4500 }, "emoji": "\ud83d\ude86" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "usa",
+      "name": "USA",
+      "emoji": "\ud83c\uddfa\ud83c\uddf8",
+      "currency": "USD",
+      "_comment": "Ported from travelDataset.js COUNTRIES.usa, with the New York, Los Angeles and San Francisco day pools from peapodData.js folded in. All 21 real state dots from countryStates.js are kept so the region-picker map still works, even though only four cities are modelled here. Intercity legs are domestic flights lifted from the source flights array; there is no drive-yourself option in the dataset because the original app never modelled car hire.",
+      "flight_cost_minor_by_tier": { "budget": 78000, "mid": 105000, "luxury": 320000 },
+      "regions": [
+        { "id": "washington", "name": "Washington", "latitude": 47.4, "longitude": -120.5 },
+        { "id": "oregon", "name": "Oregon", "latitude": 44.0, "longitude": -120.5 },
+        { "id": "california", "name": "California", "latitude": 37.0, "longitude": -119.5 },
+        { "id": "nevada", "name": "Nevada", "latitude": 39.0, "longitude": -116.5 },
+        { "id": "arizona", "name": "Arizona", "latitude": 34.0, "longitude": -111.5 },
+        { "id": "utah", "name": "Utah", "latitude": 39.5, "longitude": -111.5 },
+        { "id": "colorado", "name": "Colorado", "latitude": 39.0, "longitude": -105.5 },
+        { "id": "new-mexico", "name": "New Mexico", "latitude": 34.5, "longitude": -106.0 },
+        { "id": "texas", "name": "Texas", "latitude": 31.0, "longitude": -99.5 },
+        { "id": "oklahoma", "name": "Oklahoma", "latitude": 35.5, "longitude": -97.5 },
+        { "id": "kansas", "name": "Kansas", "latitude": 38.5, "longitude": -98.0 },
+        { "id": "missouri", "name": "Missouri", "latitude": 38.5, "longitude": -92.5 },
+        { "id": "minnesota", "name": "Minnesota", "latitude": 46.0, "longitude": -94.0 },
+        { "id": "illinois", "name": "Illinois", "latitude": 40.0, "longitude": -89.0 },
+        { "id": "michigan", "name": "Michigan", "latitude": 44.0, "longitude": -85.0 },
+        { "id": "new-york", "name": "New York", "latitude": 43.0, "longitude": -75.0 },
+        { "id": "massachusetts", "name": "Massachusetts", "latitude": 42.4, "longitude": -71.1 },
+        { "id": "florida", "name": "Florida", "latitude": 28.0, "longitude": -81.5 },
+        { "id": "georgia", "name": "Georgia", "latitude": 32.8, "longitude": -83.5 },
+        { "id": "louisiana", "name": "Louisiana", "latitude": 31.0, "longitude": -92.0 },
+        { "id": "hawaii", "name": "Hawaii", "latitude": 20.3, "longitude": -157.0 },
+        { "id": "alaska", "name": "Alaska", "latitude": 64.0, "longitude": -150.0 }
+      ],
+      "cities": [
+        {
+          "id": "new-york",
+          "name": "New York",
+          "region": "new-york",
+          "latitude": 40.71,
+          "longitude": -74.01,
+          "activities": [
+            { "id": "ny_central_park", "title": "Central Park", "kind": "activity", "emoji": "\ud83c\udf33", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "relaxed", "romantic", "family"] },
+            { "id": "ny_times_square", "title": "Times Square", "kind": "activity", "emoji": "\ud83c\udf03", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "night"] },
+            { "id": "ny_liberty", "title": "Statue of Liberty & Ellis Island", "kind": "activity", "emoji": "\ud83d\uddfd", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 2500, "mid": 2500, "luxury": 4500 }, "tags": ["history", "family", "photo"] },
+            { "id": "ny_empire", "title": "Empire State Building", "kind": "activity", "emoji": "\ud83c\udfd9\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 4400, "mid": 4400, "luxury": 8000 }, "tags": ["photo", "romantic"] },
+            { "id": "ny_brooklyn_bridge", "title": "Brooklyn Bridge walk", "kind": "activity", "emoji": "\ud83c\udf09", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "romantic", "adventure"] },
+            { "id": "ny_high_line", "title": "High Line", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "photo", "relaxed"] },
+            { "id": "ny_moma", "title": "Museum of Modern Art", "kind": "activity", "emoji": "\ud83d\uddbc\ufe0f", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 3000, "mid": 3000, "luxury": 3000 }, "tags": ["culture", "photo"] },
+            { "id": "ny_met", "title": "Metropolitan Museum of Art", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 3000, "mid": 3000, "luxury": 3000 }, "tags": ["culture", "history"] },
+            { "id": "ny_broadway", "title": "Broadway show", "kind": "activity", "emoji": "\ud83c\udfad", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 8900, "mid": 15000, "luxury": 32500 }, "tags": ["culture", "romantic", "night"] },
+            { "id": "ny_chelsea_market", "title": "Chelsea Market", "kind": "meal", "emoji": "\ud83c\udf7d\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1500, "mid": 2800, "luxury": 5000 }, "tags": ["food", "shopping", "local"] },
+            { "id": "ny_katz", "title": "Katz's Delicatessen", "kind": "meal", "emoji": "\ud83e\udd6a", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 1800, "mid": 2800, "luxury": 4500 }, "tags": ["food", "local"] },
+            { "id": "ny_soho", "title": "SoHo", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "photo"] }
+          ],
+          "hotels": [
+            { "id": "ny_hotel_budget", "name": "HI NYC Hostel", "tier": "budget", "night_cost_minor": 6000, "emoji": "\ud83c\udfe8" },
+            { "id": "ny_hotel_mid", "name": "Marriott Marquis", "tier": "mid", "night_cost_minor": 32000, "emoji": "\ud83c\udfe8" },
+            { "id": "ny_hotel_luxury", "name": "The Plaza Hotel", "tier": "luxury", "night_cost_minor": 90000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "orlando", "mode": "flight", "title": "JetBlue B6 601 to Orlando", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 9000, "mid": 13000, "luxury": 32000 }, "emoji": "\u2708\ufe0f" },
+            { "city_id": "las-vegas", "mode": "flight", "title": "Delta DL 423 to Las Vegas", "duration_minutes": 330, "cost_minor_by_tier": { "budget": 13000, "mid": 18000, "luxury": 46000 }, "emoji": "\u2708\ufe0f" },
+            { "city_id": "san-francisco", "mode": "flight", "title": "United to San Francisco", "duration_minutes": 375, "cost_minor_by_tier": { "budget": 15000, "mid": 22000, "luxury": 58000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "san-francisco",
+          "name": "San Francisco",
+          "region": "california",
+          "latitude": 37.77,
+          "longitude": -122.42,
+          "activities": [
+            { "id": "sf_golden_gate", "title": "Golden Gate Bridge", "kind": "activity", "emoji": "\ud83c\udf09", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "romantic", "adventure"] },
+            { "id": "sf_alcatraz", "title": "Alcatraz Island", "kind": "activity", "emoji": "\ud83c\udfdd\ufe0f", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 4500, "mid": 4500, "luxury": 9500 }, "tags": ["history", "photo", "family"] },
+            { "id": "sf_fishermans", "title": "Fisherman's Wharf", "kind": "activity", "emoji": "\ud83e\udd80", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["food", "photo", "family"] },
+            { "id": "sf_lombard", "title": "Lombard Street", "kind": "activity", "emoji": "\ud83d\udee3\ufe0f", "duration_minutes": 30, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo"] },
+            { "id": "sf_chinatown", "title": "Chinatown", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "food", "local"] },
+            { "id": "sf_ferry", "title": "Ferry Building food hall", "kind": "meal", "emoji": "\ud83c\udf7d\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1500, "mid": 2500, "luxury": 4500 }, "tags": ["food", "local"] },
+            { "id": "sf_ggp", "title": "Golden Gate Park", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "family", "relaxed"] },
+            { "id": "sf_calacademy", "title": "California Academy of Sciences", "kind": "activity", "emoji": "\ud83d\udd2c", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 4000, "mid": 4000, "luxury": 4000 }, "tags": ["family", "culture"] },
+            { "id": "sf_sausalito", "title": "Sausalito ferry", "kind": "activity", "emoji": "\u26f5", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 1400, "mid": 1400, "luxury": 1400 }, "tags": ["romantic", "photo", "relaxed"] },
+            { "id": "sf_muir", "title": "Muir Woods day trip", "kind": "activity", "emoji": "\ud83c\udf32", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 3000, "mid": 4000, "luxury": 9000 }, "tags": ["nature", "adventure"] }
+          ],
+          "hotels": [
+            { "id": "sf_hotel_budget", "name": "HI SF Downtown", "tier": "budget", "night_cost_minor": 6000, "emoji": "\ud83c\udfe8" },
+            { "id": "sf_hotel_mid", "name": "Hotel Zephyr Fisherman's Wharf", "tier": "mid", "night_cost_minor": 24000, "emoji": "\ud83c\udfe8" },
+            { "id": "sf_hotel_luxury", "name": "Fairmont San Francisco", "tier": "luxury", "night_cost_minor": 50000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "las-vegas", "mode": "flight", "title": "Southwest WN 1842 to Las Vegas", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 5000, "mid": 7000, "luxury": 19000 }, "emoji": "\u2708\ufe0f" },
+            { "city_id": "new-york", "mode": "flight", "title": "Flight back to New York", "duration_minutes": 330, "cost_minor_by_tier": { "budget": 15000, "mid": 22000, "luxury": 58000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "las-vegas",
+          "name": "Las Vegas",
+          "region": "nevada",
+          "latitude": 36.17,
+          "longitude": -115.14,
+          "activities": [
+            { "id": "lv_strip", "title": "Las Vegas Strip walk", "kind": "activity", "emoji": "\ud83c\udfb0", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "night", "local"] },
+            { "id": "lv_bellagio", "title": "Bellagio Fountains", "kind": "activity", "emoji": "\u26f2", "duration_minutes": 30, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["romantic", "photo", "budget"] },
+            { "id": "lv_fremont", "title": "Fremont Street Experience", "kind": "activity", "emoji": "\ud83c\udf03", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["night", "photo", "local"] },
+            { "id": "lv_redrock", "title": "Red Rock Canyon", "kind": "activity", "emoji": "\ud83c\udfdc\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 1500, "mid": 2500, "luxury": 6000 }, "tags": ["nature", "adventure", "photo"] },
+            { "id": "lv_grandcanyon", "title": "Grand Canyon day trip", "kind": "activity", "emoji": "\ud83c\udfdc\ufe0f", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 18000, "mid": 28000, "luxury": 52000 }, "tags": ["adventure", "nature", "photo"] },
+            { "id": "lv_neon", "title": "Neon Museum", "kind": "activity", "emoji": "\ud83d\udca1", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 2200, "mid": 2200, "luxury": 2200 }, "tags": ["photo", "history", "culture"] },
+            { "id": "lv_highroller", "title": "High Roller wheel", "kind": "activity", "emoji": "\ud83c\udfa1", "duration_minutes": 30, "cost_minor_by_tier": { "budget": 2400, "mid": 3000, "luxury": 5000 }, "tags": ["photo", "romantic"] },
+            { "id": "lv_cirque", "title": "Cirque du Soleil show", "kind": "activity", "emoji": "\ud83c\udfad", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 8500, "mid": 14000, "luxury": 25000 }, "tags": ["culture", "family", "night"] },
+            { "id": "lv_buffet", "title": "Buffet at Wynn", "kind": "meal", "emoji": "\ud83c\udf7d\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 4500, "mid": 7500, "luxury": 11000 }, "tags": ["food", "family", "luxury"] }
+          ],
+          "hotels": [
+            { "id": "lv_hotel_budget", "name": "Downtown Grand", "tier": "budget", "night_cost_minor": 7000, "emoji": "\ud83c\udfe8" },
+            { "id": "lv_hotel_mid", "name": "MGM Grand", "tier": "mid", "night_cost_minor": 18000, "emoji": "\ud83c\udfe8" },
+            { "id": "lv_hotel_luxury", "name": "The Venetian", "tier": "luxury", "night_cost_minor": 35000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "san-francisco", "mode": "flight", "title": "Southwest to San Francisco", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 5000, "mid": 7000, "luxury": 19000 }, "emoji": "\u2708\ufe0f" },
+            { "city_id": "new-york", "mode": "flight", "title": "Flight back to New York", "duration_minutes": 300, "cost_minor_by_tier": { "budget": 13000, "mid": 18000, "luxury": 46000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "orlando",
+          "name": "Orlando",
+          "region": "florida",
+          "latitude": 28.54,
+          "longitude": -81.38,
+          "activities": [
+            { "id": "or_wdw", "title": "Walt Disney World", "kind": "activity", "emoji": "\ud83c\udff0", "duration_minutes": 600, "cost_minor_by_tier": { "budget": 11900, "mid": 16000, "luxury": 22000 }, "tags": ["themepark", "family"] },
+            { "id": "or_universal", "title": "Universal Orlando", "kind": "activity", "emoji": "\ud83c\udfa2", "duration_minutes": 600, "cost_minor_by_tier": { "budget": 10900, "mid": 14500, "luxury": 19500 }, "tags": ["themepark", "family"] },
+            { "id": "or_seaworld", "title": "SeaWorld Orlando", "kind": "activity", "emoji": "\ud83d\udc2c", "duration_minutes": 360, "cost_minor_by_tier": { "budget": 8000, "mid": 10900, "luxury": 14500 }, "tags": ["family", "themepark"] },
+            { "id": "or_disney_springs", "title": "Disney Springs", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "food", "family"] },
+            { "id": "or_icon", "title": "ICON Park & The Wheel", "kind": "activity", "emoji": "\ud83c\udfa1", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 2500, "luxury": 3500 }, "tags": ["family", "photo"] },
+            { "id": "or_lake_eola", "title": "Lake Eola Park", "kind": "activity", "emoji": "\ud83c\udf33", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "nature", "local"] },
+            { "id": "or_kennedy", "title": "Kennedy Space Center day trip", "kind": "activity", "emoji": "\ud83d\ude80", "duration_minutes": 360, "cost_minor_by_tier": { "budget": 7500, "mid": 7500, "luxury": 12000 }, "tags": ["family", "history", "adventure"] }
+          ],
+          "hotels": [
+            { "id": "or_hotel_budget", "name": "HI Orlando", "tier": "budget", "night_cost_minor": 5000, "emoji": "\ud83c\udfe8" },
+            { "id": "or_hotel_mid", "name": "Universal's Cabana Bay Beach Resort", "tier": "mid", "night_cost_minor": 18000, "emoji": "\ud83c\udfe8" },
+            { "id": "or_hotel_luxury", "name": "Disney's Grand Floridian", "tier": "luxury", "night_cost_minor": 60000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "new-york", "mode": "flight", "title": "Flight back to New York", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 9000, "mid": 13000, "luxury": 32000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "china",
+      "name": "China",
+      "emoji": "\ud83c\udde8\ud83c\uddf3",
+      "currency": "CNY",
+      "_comment": "Ported from travelDataset.js COUNTRIES.china plus the Beijing / Shanghai / Chengdu day pools in peapodData.js. The region list is the 16 real dots from countryStates.js and includes Hong Kong, because the original region-picker map drew it as a selectable dot on the China outline; Hong Kong also exists here as its own country entry for the short-haul trips the decision queue proposes. Chengdu had no mid-tier hotel in the source, so one was added.",
+      "flight_cost_minor_by_tier": { "budget": 220000, "mid": 340000, "luxury": 900000 },
+      "regions": [
+        { "id": "beijing", "name": "Beijing", "latitude": 39.9, "longitude": 116.4 },
+        { "id": "shanghai", "name": "Shanghai", "latitude": 31.23, "longitude": 121.47 },
+        { "id": "guangzhou", "name": "Guangzhou", "latitude": 23.13, "longitude": 113.26 },
+        { "id": "shenzhen", "name": "Shenzhen", "latitude": 22.54, "longitude": 114.06 },
+        { "id": "chengdu", "name": "Chengdu", "latitude": 30.57, "longitude": 104.07 },
+        { "id": "kunming", "name": "Kunming", "latitude": 25.04, "longitude": 102.72 },
+        { "id": "xian", "name": "Xi'an", "latitude": 34.27, "longitude": 108.95 },
+        { "id": "wuhan", "name": "Wuhan", "latitude": 30.59, "longitude": 114.31 },
+        { "id": "hangzhou", "name": "Hangzhou", "latitude": 30.27, "longitude": 120.15 },
+        { "id": "nanjing", "name": "Nanjing", "latitude": 32.06, "longitude": 118.8 },
+        { "id": "qingdao", "name": "Qingdao", "latitude": 36.07, "longitude": 120.38 },
+        { "id": "shenyang", "name": "Shenyang", "latitude": 41.8, "longitude": 123.43 },
+        { "id": "harbin", "name": "Harbin", "latitude": 45.8, "longitude": 126.53 },
+        { "id": "urumqi", "name": "Urumqi", "latitude": 43.82, "longitude": 87.62 },
+        { "id": "lhasa", "name": "Lhasa", "latitude": 29.65, "longitude": 91.13 },
+        { "id": "hong-kong", "name": "Hong Kong", "latitude": 22.32, "longitude": 114.17 }
+      ],
+      "cities": [
+        {
+          "id": "beijing",
+          "name": "Beijing",
+          "region": "beijing",
+          "latitude": 39.9,
+          "longitude": 116.4,
+          "activities": [
+            { "id": "bj_forbidden", "title": "Forbidden City", "kind": "activity", "emoji": "\ud83c\udfef", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 6000, "mid": 6000, "luxury": 6000 }, "tags": ["history", "culture", "photo"] },
+            { "id": "bj_great_wall", "title": "Great Wall (Mutianyu)", "kind": "activity", "emoji": "\ud83e\uddf1", "duration_minutes": 360, "cost_minor_by_tier": { "budget": 12000, "mid": 26000, "luxury": 45000 }, "tags": ["adventure", "history", "photo"] },
+            { "id": "bj_tiananmen", "title": "Tiananmen Square", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 45, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history"] },
+            { "id": "bj_temple_heaven", "title": "Temple of Heaven", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 3400, "mid": 3400, "luxury": 3400 }, "tags": ["culture", "history"] },
+            { "id": "bj_summer_palace", "title": "Summer Palace", "kind": "activity", "emoji": "\ud83c\udfef", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 3000, "mid": 3000, "luxury": 3000 }, "tags": ["culture", "nature"] },
+            { "id": "bj_798", "title": "798 Art District", "kind": "activity", "emoji": "\ud83d\uddbc\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "photo", "local"] },
+            { "id": "bj_hutong", "title": "Hutong rickshaw tour", "kind": "activity", "emoji": "\ud83d\udefa", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 8000, "mid": 12000, "luxury": 22000 }, "tags": ["local", "culture", "family"] },
+            { "id": "bj_wangfujing", "title": "Wangfujing", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "food"] },
+            { "id": "bj_lama", "title": "Lama Temple", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 2500, "mid": 2500, "luxury": 2500 }, "tags": ["culture"] },
+            { "id": "bj_duck", "title": "Peking duck dinner at Quanjude", "kind": "meal", "emoji": "\ud83e\udd86", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 12000, "mid": 22000, "luxury": 45000 }, "tags": ["food", "local"] }
+          ],
+          "hotels": [
+            { "id": "bj_hotel_budget", "name": "Peking Youth Hostel", "tier": "budget", "night_cost_minor": 18000, "emoji": "\ud83c\udfe8" },
+            { "id": "bj_hotel_mid", "name": "Hotel CaoYuan", "tier": "mid", "night_cost_minor": 65000, "emoji": "\ud83c\udfe8" },
+            { "id": "bj_hotel_luxury", "name": "The Peninsula Beijing", "tier": "luxury", "night_cost_minor": 230000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "shanghai", "mode": "train", "title": "G-train to Shanghai Hongqiao", "duration_minutes": 270, "cost_minor_by_tier": { "budget": 55300, "mid": 55300, "luxury": 93300 }, "emoji": "\ud83d\ude84" },
+            { "city_id": "xian", "mode": "train", "title": "G-train to Xi'an North", "duration_minutes": 270, "cost_minor_by_tier": { "budget": 51600, "mid": 51600, "luxury": 82500 }, "emoji": "\ud83d\ude84" },
+            { "city_id": "chengdu", "mode": "flight", "title": "Air China CA 1831 to Chengdu", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 70000, "mid": 95000, "luxury": 250000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "shanghai",
+          "name": "Shanghai",
+          "region": "shanghai",
+          "latitude": 31.23,
+          "longitude": 121.47,
+          "activities": [
+            { "id": "sh_bund", "title": "The Bund", "kind": "activity", "emoji": "\ud83c\udf03", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "romantic", "night"] },
+            { "id": "sh_yugarden", "title": "Yu Garden", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 4000, "mid": 4000, "luxury": 4000 }, "tags": ["culture", "photo"] },
+            { "id": "sh_tower", "title": "Shanghai Tower", "kind": "activity", "emoji": "\ud83c\udfd9\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 18000, "mid": 18000, "luxury": 18000 }, "tags": ["photo"] },
+            { "id": "sh_museum", "title": "Shanghai Museum", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "history"] },
+            { "id": "sh_xintiandi", "title": "Xintiandi", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["night", "food", "shopping"] },
+            { "id": "sh_tianzifang", "title": "Tianzifang", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "local", "photo"] },
+            { "id": "sh_french", "title": "French Concession walk", "kind": "activity", "emoji": "\ud83c\udf33", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "local", "photo"] },
+            { "id": "sh_disney", "title": "Shanghai Disneyland", "kind": "activity", "emoji": "\ud83c\udff0", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 47500, "mid": 59900, "luxury": 79900 }, "tags": ["themepark", "family"] },
+            { "id": "sh_zhujiajiao", "title": "Zhujiajiao water town", "kind": "activity", "emoji": "\ud83c\udfd8\ufe0f", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 8000, "mid": 8000, "luxury": 16000 }, "tags": ["culture", "photo", "local"] },
+            { "id": "sh_dumplings", "title": "Din Tai Fung Shanghai", "kind": "meal", "emoji": "\ud83e\udd5f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 8000, "mid": 15000, "luxury": 28000 }, "tags": ["food", "family"] }
+          ],
+          "hotels": [
+            { "id": "sh_hotel_budget", "name": "Mingtown Etour Youth Hostel", "tier": "budget", "night_cost_minor": 22000, "emoji": "\ud83c\udfe8" },
+            { "id": "sh_hotel_mid", "name": "Jing An Hotel", "tier": "mid", "night_cost_minor": 80000, "emoji": "\ud83c\udfe8" },
+            { "id": "sh_hotel_luxury", "name": "The Ritz-Carlton Shanghai, Pudong", "tier": "luxury", "night_cost_minor": 290000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "beijing", "mode": "train", "title": "G-train back to Beijing South", "duration_minutes": 270, "cost_minor_by_tier": { "budget": 55300, "mid": 55300, "luxury": 93300 }, "emoji": "\ud83d\ude84" }
+          ]
+        },
+        {
+          "id": "xian",
+          "name": "Xi'an",
+          "region": "xian",
+          "latitude": 34.27,
+          "longitude": 108.95,
+          "activities": [
+            { "id": "xa_terracotta", "title": "Terracotta Army", "kind": "activity", "emoji": "\ud83d\uddff", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 12000, "mid": 12000, "luxury": 24000 }, "tags": ["history", "culture", "photo"] },
+            { "id": "xa_wall", "title": "Ancient City Wall", "kind": "activity", "emoji": "\ud83e\uddf1", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 5400, "mid": 5400, "luxury": 9000 }, "tags": ["history", "adventure"] },
+            { "id": "xa_muslim", "title": "Muslim Quarter street food", "kind": "meal", "emoji": "\ud83c\udfee", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 3000, "mid": 6000, "luxury": 12000 }, "tags": ["food", "local", "night"] },
+            { "id": "xa_big_wild", "title": "Big Wild Goose Pagoda", "kind": "activity", "emoji": "\ud83d\uddfc", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 5000, "mid": 5000, "luxury": 5000 }, "tags": ["culture"] },
+            { "id": "xa_bell", "title": "Bell Tower", "kind": "activity", "emoji": "\ud83d\udd14", "duration_minutes": 45, "cost_minor_by_tier": { "budget": 3000, "mid": 3000, "luxury": 3000 }, "tags": ["history", "photo"] },
+            { "id": "xa_hist_museum", "title": "Shaanxi History Museum", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture"] },
+            { "id": "xa_datang", "title": "Datang Everbright City", "kind": "activity", "emoji": "\ud83c\udf03", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["night", "photo", "culture"] },
+            { "id": "xa_huaqing", "title": "Huaqing Palace", "kind": "activity", "emoji": "\ud83c\udfef", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 8000, "mid": 8000, "luxury": 8000 }, "tags": ["history", "romantic"] }
+          ],
+          "hotels": [
+            { "id": "xa_hotel_budget", "name": "Bell Tower Youth Hostel", "tier": "budget", "night_cost_minor": 16000, "emoji": "\ud83c\udfe8" },
+            { "id": "xa_hotel_mid", "name": "Mercure Xi'an", "tier": "mid", "night_cost_minor": 50000, "emoji": "\ud83c\udfe8" },
+            { "id": "xa_hotel_luxury", "name": "Sofitel Xi'an", "tier": "luxury", "night_cost_minor": 145000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "beijing", "mode": "train", "title": "G-train back to Beijing West", "duration_minutes": 270, "cost_minor_by_tier": { "budget": 51600, "mid": 51600, "luxury": 82500 }, "emoji": "\ud83d\ude84" }
+          ]
+        },
+        {
+          "id": "chengdu",
+          "name": "Chengdu",
+          "region": "chengdu",
+          "latitude": 30.57,
+          "longitude": 104.07,
+          "activities": [
+            { "id": "cd_panda", "title": "Giant Panda Breeding Base", "kind": "activity", "emoji": "\ud83d\udc3c", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 5500, "mid": 5500, "luxury": 5500 }, "tags": ["family", "nature", "photo"] },
+            { "id": "cd_people_park", "title": "People's Park tea house", "kind": "activity", "emoji": "\ud83c\udf75", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1500, "mid": 2500, "luxury": 5000 }, "tags": ["relaxed", "local", "culture"] },
+            { "id": "cd_kuanzhai", "title": "Kuanzhai Alley", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "food", "photo"] },
+            { "id": "cd_jinli", "title": "Jinli Ancient Street", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "food", "local"] },
+            { "id": "cd_wuhou", "title": "Wuhou Shrine", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 5000, "mid": 5000, "luxury": 5000 }, "tags": ["history", "culture"] },
+            { "id": "cd_hotpot", "title": "Sichuan hot pot night", "kind": "meal", "emoji": "\ud83c\udf72", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 8000, "mid": 16000, "luxury": 30000 }, "tags": ["food", "night", "local"] },
+            { "id": "cd_opera", "title": "Sichuan Opera & face-changing", "kind": "activity", "emoji": "\ud83c\udfad", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 12000, "mid": 18000, "luxury": 28000 }, "tags": ["culture", "night"] },
+            { "id": "cd_qingcheng", "title": "Qingcheng Mountain", "kind": "activity", "emoji": "\u26f0\ufe0f", "duration_minutes": 300, "cost_minor_by_tier": { "budget": 9000, "mid": 9000, "luxury": 18000 }, "tags": ["nature", "relaxed", "adventure"] }
+          ],
+          "hotels": [
+            { "id": "cd_hotel_budget", "name": "Traffic Hotel", "tier": "budget", "night_cost_minor": 22000, "emoji": "\ud83c\udfe8" },
+            { "id": "cd_hotel_mid", "name": "Chengdu Chunxi Road city hotel", "tier": "mid", "night_cost_minor": 52000, "emoji": "\ud83c\udfe8" },
+            { "id": "cd_hotel_luxury", "name": "The Temple House", "tier": "luxury", "night_cost_minor": 200000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "beijing", "mode": "flight", "title": "Flight back to Beijing", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 70000, "mid": 95000, "luxury": 250000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "australia",
+      "name": "Australia",
+      "emoji": "\ud83c\udde6\ud83c\uddfa",
+      "currency": "AUD",
+      "_comment": "Ported from travelDataset.js COUNTRIES.australia plus the Sydney / Melbourne / Cairns day pools in peapodData.js. Regions are the 13 real dots from countryStates.js, which deliberately mixes states with a few standalone cities (Cairns, Brisbane, Gold Coast) because that is how the original picker let people choose. Intercity legs are the domestic flights from the source flights array; the source also had two long rail options that are omitted here because they are slower and more expensive than flying on every route the generator would use.",
+      "flight_cost_minor_by_tier": { "budget": 52000, "mid": 75000, "luxury": 190000 },
+      "regions": [
+        { "id": "western-australia", "name": "Western Australia", "latitude": -25.0, "longitude": 122.0 },
+        { "id": "northern-territory", "name": "Northern Territory", "latitude": -19.0, "longitude": 133.0 },
+        { "id": "south-australia", "name": "South Australia", "latitude": -30.0, "longitude": 135.0 },
+        { "id": "queensland", "name": "Queensland", "latitude": -20.0, "longitude": 145.0 },
+        { "id": "cairns", "name": "Cairns", "latitude": -16.9, "longitude": 145.7 },
+        { "id": "brisbane", "name": "Brisbane", "latitude": -27.47, "longitude": 153.02 },
+        { "id": "gold-coast", "name": "Gold Coast", "latitude": -28.02, "longitude": 153.4 },
+        { "id": "new-south-wales", "name": "New South Wales", "latitude": -33.0, "longitude": 147.0 },
+        { "id": "sydney", "name": "Sydney", "latitude": -33.87, "longitude": 151.21 },
+        { "id": "victoria", "name": "Victoria", "latitude": -37.0, "longitude": 144.0 },
+        { "id": "melbourne", "name": "Melbourne", "latitude": -37.81, "longitude": 144.96 },
+        { "id": "tasmania", "name": "Tasmania", "latitude": -42.0, "longitude": 146.5 },
+        { "id": "australian-capital-territory", "name": "Australian Capital Territory", "latitude": -35.3, "longitude": 149.1 }
+      ],
+      "cities": [
+        {
+          "id": "sydney",
+          "name": "Sydney",
+          "region": "sydney",
+          "latitude": -33.87,
+          "longitude": 151.21,
+          "activities": [
+            { "id": "sy_opera", "title": "Sydney Opera House tour", "kind": "activity", "emoji": "\ud83c\udfad", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 4300, "mid": 4300, "luxury": 9500 }, "tags": ["culture", "photo", "romantic"] },
+            { "id": "sy_bondi", "title": "Bondi Beach", "kind": "activity", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "nature", "photo"] },
+            { "id": "sy_bondi_walk", "title": "Bondi to Coogee coastal walk", "kind": "activity", "emoji": "\ud83e\udd7e", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["adventure", "nature", "photo"] },
+            { "id": "sy_rocks", "title": "The Rocks", "kind": "activity", "emoji": "\ud83c\udfda\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "local", "food"] },
+            { "id": "sy_botanic", "title": "Royal Botanic Garden", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "relaxed", "romantic"] },
+            { "id": "sy_manly", "title": "Manly ferry & beach", "kind": "activity", "emoji": "\u26f4\ufe0f", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 1100, "mid": 1100, "luxury": 1100 }, "tags": ["relaxed", "nature", "romantic"] },
+            { "id": "sy_taronga", "title": "Taronga Zoo", "kind": "activity", "emoji": "\ud83e\udd98", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 5100, "mid": 5100, "luxury": 5100 }, "tags": ["family", "photo"] },
+            { "id": "sy_darling", "title": "Darling Harbour", "kind": "activity", "emoji": "\ud83c\udf06", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["family", "food", "shopping"] },
+            { "id": "sy_bridge", "title": "Sydney Harbour Bridge climb", "kind": "activity", "emoji": "\ud83c\udf09", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 17400, "mid": 22800, "luxury": 38800 }, "tags": ["adventure", "photo", "romantic"] },
+            { "id": "sy_blue", "title": "Blue Mountains day trip", "kind": "activity", "emoji": "\ud83c\udfd4\ufe0f", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 9500, "mid": 12000, "luxury": 25000 }, "tags": ["nature", "adventure", "photo"] },
+            { "id": "sy_harbour_dinner", "title": "Sunset drinks at a harbour rooftop", "kind": "meal", "emoji": "\ud83c\udf19", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 3500, "mid": 6000, "luxury": 14000 }, "tags": ["night", "romantic", "food"] }
+          ],
+          "hotels": [
+            { "id": "sy_hotel_budget", "name": "Wake Up! Sydney", "tier": "budget", "night_cost_minor": 5000, "emoji": "\ud83c\udfe8" },
+            { "id": "sy_hotel_mid", "name": "Vibe Hotel Sydney", "tier": "mid", "night_cost_minor": 20000, "emoji": "\ud83c\udfe8" },
+            { "id": "sy_hotel_luxury", "name": "Park Hyatt Sydney", "tier": "luxury", "night_cost_minor": 70000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "melbourne", "mode": "flight", "title": "Qantas QF 401 to Melbourne", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 8500, "mid": 11000, "luxury": 29000 }, "emoji": "\u2708\ufe0f" },
+            { "city_id": "cairns", "mode": "flight", "title": "Qantas QF 922 to Cairns", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 14000, "mid": 18000, "luxury": 42000 }, "emoji": "\u2708\ufe0f" },
+            { "city_id": "gold-coast", "mode": "flight", "title": "Qantas QF 580 to Gold Coast", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 7500, "mid": 10000, "luxury": 26000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "melbourne",
+          "name": "Melbourne",
+          "region": "melbourne",
+          "latitude": -37.81,
+          "longitude": 144.96,
+          "activities": [
+            { "id": "me_fedsq", "title": "Federation Square", "kind": "activity", "emoji": "\ud83c\udfd9\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "local", "photo"] },
+            { "id": "me_qvm", "title": "Queen Victoria Market", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["food", "shopping", "local", "budget"] },
+            { "id": "me_hosier", "title": "Hosier Lane street art", "kind": "activity", "emoji": "\ud83d\uddbc\ufe0f", "duration_minutes": 45, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "local", "culture"] },
+            { "id": "me_botanic", "title": "Royal Botanic Gardens", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "relaxed", "romantic"] },
+            { "id": "me_ngv", "title": "National Gallery of Victoria", "kind": "activity", "emoji": "\ud83d\uddbc\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "photo"] },
+            { "id": "me_stkilda", "title": "St Kilda Beach & pier", "kind": "activity", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "nature", "family"] },
+            { "id": "me_coffee", "title": "Coffee crawl through the CBD lanes", "kind": "meal", "emoji": "\u2615", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 1200, "mid": 2500, "luxury": 4500 }, "tags": ["food", "local", "relaxed"] },
+            { "id": "me_greatocean", "title": "Great Ocean Road day trip", "kind": "activity", "emoji": "\ud83c\udf0a", "duration_minutes": 600, "cost_minor_by_tier": { "budget": 10500, "mid": 13000, "luxury": 22000 }, "tags": ["nature", "adventure", "photo"] },
+            { "id": "me_phillip", "title": "Phillip Island penguin parade", "kind": "activity", "emoji": "\ud83d\udc27", "duration_minutes": 360, "cost_minor_by_tier": { "budget": 8000, "mid": 10000, "luxury": 17000 }, "tags": ["family", "nature"] }
+          ],
+          "hotels": [
+            { "id": "me_hotel_budget", "name": "Space Hotel", "tier": "budget", "night_cost_minor": 4500, "emoji": "\ud83c\udfe8" },
+            { "id": "me_hotel_mid", "name": "Novotel Melbourne", "tier": "mid", "night_cost_minor": 18000, "emoji": "\ud83c\udfe8" },
+            { "id": "me_hotel_luxury", "name": "Crown Towers Melbourne", "tier": "luxury", "night_cost_minor": 40000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "sydney", "mode": "flight", "title": "Jetstar JQ 681 back to Sydney", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 6500, "mid": 8500, "luxury": 26000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "cairns",
+          "name": "Cairns",
+          "region": "cairns",
+          "latitude": -16.92,
+          "longitude": 145.77,
+          "activities": [
+            { "id": "cn_reef", "title": "Great Barrier Reef snorkel tour", "kind": "activity", "emoji": "\ud83e\udd3f", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 18500, "mid": 22000, "luxury": 34000 }, "tags": ["adventure", "nature", "family"] },
+            { "id": "cn_daintree", "title": "Daintree Rainforest", "kind": "activity", "emoji": "\ud83c\udf34", "duration_minutes": 360, "cost_minor_by_tier": { "budget": 12000, "mid": 15000, "luxury": 24000 }, "tags": ["nature", "adventure", "photo"] },
+            { "id": "cn_kuranda", "title": "Kuranda Scenic Railway", "kind": "activity", "emoji": "\ud83d\ude82", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 5500, "mid": 5500, "luxury": 9500 }, "tags": ["nature", "family", "photo"] },
+            { "id": "cn_skyrail", "title": "Skyrail Rainforest Cableway", "kind": "activity", "emoji": "\ud83d\udea0", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 5500, "mid": 5500, "luxury": 9500 }, "tags": ["nature", "romantic", "photo"] },
+            { "id": "cn_esplanade", "title": "Cairns Esplanade lagoon", "kind": "activity", "emoji": "\ud83c\udfca", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "family"] },
+            { "id": "cn_green", "title": "Green Island day trip", "kind": "activity", "emoji": "\ud83c\udfdd\ufe0f", "duration_minutes": 360, "cost_minor_by_tier": { "budget": 9000, "mid": 9000, "luxury": 16000 }, "tags": ["nature", "family", "relaxed"] },
+            { "id": "cn_port", "title": "Port Douglas village", "kind": "activity", "emoji": "\ud83c\udf34", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "romantic", "local"] }
+          ],
+          "hotels": [
+            { "id": "cn_hotel_budget", "name": "Nomads Cairns", "tier": "budget", "night_cost_minor": 3500, "emoji": "\ud83c\udfe8" },
+            { "id": "cn_hotel_mid", "name": "Pullman Reef Hotel Casino", "tier": "mid", "night_cost_minor": 22000, "emoji": "\ud83c\udfe8" },
+            { "id": "cn_hotel_luxury", "name": "Shangri-La The Marina", "tier": "luxury", "night_cost_minor": 32000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "sydney", "mode": "flight", "title": "Flight back to Sydney", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 14000, "mid": 18000, "luxury": 42000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "gold-coast",
+          "name": "Gold Coast",
+          "region": "gold-coast",
+          "latitude": -28.02,
+          "longitude": 153.43,
+          "activities": [
+            { "id": "gc_surfers", "title": "Surfers Paradise beach", "kind": "activity", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "photo", "family"] },
+            { "id": "gc_burleigh", "title": "Burleigh Heads headland", "kind": "activity", "emoji": "\u26f0\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "photo", "relaxed"] },
+            { "id": "gc_currumbin", "title": "Currumbin Wildlife Sanctuary", "kind": "activity", "emoji": "\ud83e\udd9c", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 5000, "mid": 5000, "luxury": 5000 }, "tags": ["family", "nature"] },
+            { "id": "gc_movieworld", "title": "Warner Bros Movie World", "kind": "activity", "emoji": "\ud83c\udfac", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 9000, "mid": 10000, "luxury": 13000 }, "tags": ["themepark", "family"] },
+            { "id": "gc_seaworld", "title": "Sea World", "kind": "activity", "emoji": "\ud83d\udc2c", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 9500, "mid": 11000, "luxury": 14000 }, "tags": ["themepark", "family"] },
+            { "id": "gc_springbrook", "title": "Springbrook National Park", "kind": "activity", "emoji": "\ud83c\udf3f", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["nature", "adventure", "photo"] },
+            { "id": "gc_skypoint", "title": "SkyPoint observation deck", "kind": "activity", "emoji": "\ud83c\udf06", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 3000, "mid": 3000, "luxury": 3000 }, "tags": ["photo", "romantic"] }
+          ],
+          "hotels": [
+            { "id": "gc_hotel_budget", "name": "Surfers Paradise YHA", "tier": "budget", "night_cost_minor": 4000, "emoji": "\ud83c\udfe8" },
+            { "id": "gc_hotel_mid", "name": "QT Gold Coast", "tier": "mid", "night_cost_minor": 20000, "emoji": "\ud83c\udfe8" },
+            { "id": "gc_hotel_luxury", "name": "Palazzo Versace", "tier": "luxury", "night_cost_minor": 38000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "sydney", "mode": "flight", "title": "Flight back to Sydney", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 7500, "mid": 10000, "luxury": 26000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "thailand",
+      "name": "Thailand",
+      "emoji": "\ud83c\uddf9\ud83c\udded",
+      "currency": "THB",
+      "_comment": "Thailand was never one of the five focus countries, so travelDataset.js has nothing for it. Activities come from the Bangkok / Chiang Mai / Krabi pools in peapodData.js destinationContent, plus the Phuket days the pod actually completed in mockScenarios.js. HOTELS AND INTERCITY TRANSPORT ARE INVENTED: no source file had any. They are typical published prices for each tier and are safe to replace with real inventory later. Regions are the eight provinces the app referenced, with real coordinates.",
+      "flight_cost_minor_by_tier": { "budget": 380000, "mid": 550000, "luxury": 1400000 },
+      "regions": [
+        { "id": "bangkok", "name": "Bangkok", "latitude": 13.76, "longitude": 100.5 },
+        { "id": "chiang-mai", "name": "Chiang Mai", "latitude": 18.79, "longitude": 98.99 },
+        { "id": "chiang-rai", "name": "Chiang Rai", "latitude": 19.91, "longitude": 99.84 },
+        { "id": "krabi", "name": "Krabi", "latitude": 8.09, "longitude": 98.91 },
+        { "id": "phuket", "name": "Phuket", "latitude": 7.88, "longitude": 98.39 },
+        { "id": "koh-samui", "name": "Koh Samui", "latitude": 9.51, "longitude": 100.01 },
+        { "id": "ayutthaya", "name": "Ayutthaya", "latitude": 14.35, "longitude": 100.58 },
+        { "id": "pattaya", "name": "Pattaya", "latitude": 12.93, "longitude": 100.88 }
+      ],
+      "cities": [
+        {
+          "id": "bangkok",
+          "name": "Bangkok",
+          "region": "bangkok",
+          "latitude": 13.76,
+          "longitude": 100.5,
+          "activities": [
+            { "id": "bkk_grand_palace", "title": "Grand Palace & Wat Phra Kaew", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 50000, "mid": 50000, "luxury": 50000 }, "tags": ["culture", "history", "photo"] },
+            { "id": "bkk_wat_arun", "title": "Wat Arun at golden hour", "kind": "activity", "emoji": "\u26e9\ufe0f", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 20000, "mid": 20000, "luxury": 20000 }, "tags": ["culture", "photo", "history"] },
+            { "id": "bkk_chao_phraya", "title": "Longtail boat on the Chao Phraya", "kind": "activity", "emoji": "\u26f5", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 15000, "mid": 30000, "luxury": 80000 }, "tags": ["adventure", "photo"] },
+            { "id": "bkk_chatuchak", "title": "Chatuchak Weekend Market", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "local"] },
+            { "id": "bkk_yaowarat", "title": "Street-food tour in Yaowarat", "kind": "meal", "emoji": "\ud83c\udf5c", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 25000, "mid": 45000, "luxury": 90000 }, "tags": ["food", "night", "local"] },
+            { "id": "bkk_rooftop", "title": "Rooftop bar at Lebua", "kind": "activity", "emoji": "\ud83c\udf19", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 60000, "mid": 90000, "luxury": 180000 }, "tags": ["night", "luxury", "romantic"] },
+            { "id": "bkk_massage", "title": "Traditional Thai massage", "kind": "activity", "emoji": "\ud83d\udc86", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 40000, "mid": 80000, "luxury": 250000 }, "tags": ["relaxed", "local"] },
+            { "id": "bkk_iconsiam", "title": "ICONSIAM riverside mall", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "family"] },
+            { "id": "bkk_free_afternoon", "title": "Free afternoon around the hotel pool", "kind": "free", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed"] }
+          ],
+          "hotels": [
+            { "id": "bkk_hotel_budget", "name": "Old Town guesthouse", "tier": "budget", "night_cost_minor": 60000, "emoji": "\ud83c\udfe8" },
+            { "id": "bkk_hotel_mid", "name": "Riverside boutique hotel", "tier": "mid", "night_cost_minor": 280000, "emoji": "\ud83c\udfe8" },
+            { "id": "bkk_hotel_luxury", "name": "Lebua at State Tower", "tier": "luxury", "night_cost_minor": 750000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "chiang-mai", "mode": "train", "title": "Overnight sleeper train to Chiang Mai", "duration_minutes": 720, "cost_minor_by_tier": { "budget": 60000, "mid": 90000, "luxury": 140000 }, "emoji": "\ud83d\ude86" },
+            { "city_id": "krabi", "mode": "flight", "title": "Domestic flight to Krabi", "duration_minutes": 85, "cost_minor_by_tier": { "budget": 90000, "mid": 130000, "luxury": 320000 }, "emoji": "\u2708\ufe0f" },
+            { "city_id": "phuket", "mode": "flight", "title": "Domestic flight to Phuket", "duration_minutes": 85, "cost_minor_by_tier": { "budget": 90000, "mid": 130000, "luxury": 320000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "chiang-mai",
+          "name": "Chiang Mai",
+          "region": "chiang-mai",
+          "latitude": 18.79,
+          "longitude": 98.99,
+          "activities": [
+            { "id": "cnx_doi_suthep", "title": "Doi Suthep temple at sunrise", "kind": "activity", "emoji": "\u26f0\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 5000, "mid": 15000, "luxury": 40000 }, "tags": ["culture", "nature", "photo"] },
+            { "id": "cnx_cooking", "title": "Thai cooking class", "kind": "activity", "emoji": "\ud83c\udf73", "duration_minutes": 300, "cost_minor_by_tier": { "budget": 100000, "mid": 120000, "luxury": 180000 }, "tags": ["food", "local", "culture"] },
+            { "id": "cnx_elephant", "title": "Ethical elephant sanctuary visit", "kind": "activity", "emoji": "\ud83d\udc18", "duration_minutes": 300, "cost_minor_by_tier": { "budget": 200000, "mid": 250000, "luxury": 350000 }, "tags": ["nature", "family"] },
+            { "id": "cnx_night_bazaar", "title": "Chiang Mai night bazaar", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "night", "local"] },
+            { "id": "cnx_old_city", "title": "Old City temple loop", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 4000, "luxury": 4000 }, "tags": ["culture", "history", "local"] },
+            { "id": "cnx_khao_soi", "title": "Khao soi lunch", "kind": "meal", "emoji": "\ud83c\udf5c", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 8000, "mid": 15000, "luxury": 30000 }, "tags": ["food", "local", "budget"] },
+            { "id": "cnx_sunday_walking", "title": "Sunday Walking Street", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "local", "night"] }
+          ],
+          "hotels": [
+            { "id": "cnx_hotel_budget", "name": "Old City hostel", "tier": "budget", "night_cost_minor": 50000, "emoji": "\ud83c\udfe8" },
+            { "id": "cnx_hotel_mid", "name": "Nimman boutique hotel", "tier": "mid", "night_cost_minor": 220000, "emoji": "\ud83c\udfe8" },
+            { "id": "cnx_hotel_luxury", "name": "Riverside resort & spa", "tier": "luxury", "night_cost_minor": 900000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "bangkok", "mode": "flight", "title": "Domestic flight back to Bangkok", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 90000, "mid": 120000, "luxury": 300000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "krabi",
+          "name": "Krabi",
+          "region": "krabi",
+          "latitude": 8.09,
+          "longitude": 98.91,
+          "activities": [
+            { "id": "krabi_phi_phi", "title": "Phi Phi Islands day tour", "kind": "activity", "emoji": "\ud83c\udfdd\ufe0f", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 130000, "mid": 160000, "luxury": 320000 }, "tags": ["adventure", "nature", "photo"] },
+            { "id": "krabi_four_island", "title": "Four-island longtail tour", "kind": "activity", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 420, "cost_minor_by_tier": { "budget": 100000, "mid": 120000, "luxury": 250000 }, "tags": ["adventure", "nature", "family"] },
+            { "id": "krabi_railay", "title": "Longtail boat to Railay", "kind": "activity", "emoji": "\u26f5", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 20000, "mid": 20000, "luxury": 60000 }, "tags": ["adventure", "nature"] },
+            { "id": "krabi_railay_sunset", "title": "Sunset at Railay West", "kind": "activity", "emoji": "\ud83c\udf05", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["romantic", "photo", "relaxed"] },
+            { "id": "krabi_hot_springs", "title": "Emerald Pool & hot springs", "kind": "activity", "emoji": "\ud83d\udca6", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 60000, "mid": 90000, "luxury": 150000 }, "tags": ["nature", "relaxed"] },
+            { "id": "krabi_beach_lunch", "title": "Beach lunch on the boat", "kind": "meal", "emoji": "\ud83e\udd65", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 15000, "mid": 25000, "luxury": 50000 }, "tags": ["food", "relaxed"] },
+            { "id": "krabi_curry_dinner", "title": "Beachside curry dinner", "kind": "meal", "emoji": "\ud83c\udf5b", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 12000, "mid": 22000, "luxury": 45000 }, "tags": ["food", "budget", "local"] }
+          ],
+          "hotels": [
+            { "id": "krabi_hotel_budget", "name": "Ao Nang guesthouse", "tier": "budget", "night_cost_minor": 70000, "emoji": "\ud83c\udfe8" },
+            { "id": "krabi_hotel_mid", "name": "Ao Nang beach resort", "tier": "mid", "night_cost_minor": 260000, "emoji": "\ud83c\udfe8" },
+            { "id": "krabi_hotel_luxury", "name": "Railay cliffside resort", "tier": "luxury", "night_cost_minor": 850000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "phuket", "mode": "bus", "title": "Coach and ferry to Phuket", "duration_minutes": 210, "cost_minor_by_tier": { "budget": 40000, "mid": 60000, "luxury": 180000 }, "emoji": "\ud83d\ude8c" },
+            { "city_id": "bangkok", "mode": "flight", "title": "Domestic flight back to Bangkok", "duration_minutes": 85, "cost_minor_by_tier": { "budget": 90000, "mid": 130000, "luxury": 320000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        },
+        {
+          "id": "phuket",
+          "name": "Phuket",
+          "region": "phuket",
+          "latitude": 7.88,
+          "longitude": 98.39,
+          "activities": [
+            { "id": "phuket_phi_phi", "title": "Phi Phi lagoon speedboat day", "kind": "activity", "emoji": "\ud83c\udfdd\ufe0f", "duration_minutes": 480, "cost_minor_by_tier": { "budget": 150000, "mid": 180000, "luxury": 350000 }, "tags": ["adventure", "nature", "photo"] },
+            { "id": "phuket_old_town", "title": "Phuket Old Town Sino-Portuguese walk", "kind": "activity", "emoji": "\ud83c\udfda\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "photo", "local"] },
+            { "id": "phuket_kata", "title": "Kata Beach afternoon", "kind": "activity", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "nature"] },
+            { "id": "phuket_big_buddha", "title": "Big Buddha viewpoint", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "photo"] },
+            { "id": "phuket_slow_morning", "title": "Slow morning, nothing scheduled", "kind": "free", "emoji": "\u2615", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 5000, "mid": 10000, "luxury": 20000 }, "tags": ["relaxed", "food"] },
+            { "id": "phuket_spa", "title": "Couples spa afternoon", "kind": "activity", "emoji": "\ud83d\udc86", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 80000, "mid": 120000, "luxury": 300000 }, "tags": ["relaxed", "luxury", "romantic"] },
+            { "id": "phuket_sunset_dinner", "title": "Seafood dinner on the sand", "kind": "meal", "emoji": "\ud83e\udd9e", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 40000, "mid": 80000, "luxury": 180000 }, "tags": ["food", "romantic"] }
+          ],
+          "hotels": [
+            { "id": "phuket_hotel_budget", "name": "Kata backpackers", "tier": "budget", "night_cost_minor": 65000, "emoji": "\ud83c\udfe8" },
+            { "id": "phuket_hotel_mid", "name": "Kata Beach resort", "tier": "mid", "night_cost_minor": 300000, "emoji": "\ud83c\udfe8" },
+            { "id": "phuket_hotel_luxury", "name": "Kamala clifftop villa resort", "tier": "luxury", "night_cost_minor": 1200000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "krabi", "mode": "bus", "title": "Coach and ferry to Krabi", "duration_minutes": 210, "cost_minor_by_tier": { "budget": 40000, "mid": 60000, "luxury": 180000 }, "emoji": "\ud83d\ude8c" },
+            { "city_id": "bangkok", "mode": "flight", "title": "Domestic flight back to Bangkok", "duration_minutes": 85, "cost_minor_by_tier": { "budget": 90000, "mid": 130000, "luxury": 320000 }, "emoji": "\u2708\ufe0f" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "malaysia",
+      "name": "Malaysia",
+      "emoji": "\ud83c\uddf2\ud83c\uddfe",
+      "currency": "MYR",
+      "_comment": "Activities are ported from the Kuala Lumpur / Penang / Johor / Malacca pools in peapodData.js destinationContent and from the Malaysia trips the pod completed in mockScenarios.js. HOTELS AND INTERCITY TRANSPORT ARE INVENTED for the same reason as Thailand: travelDataset.js never covered Malaysia. The flight tier is deliberately tiny because Kuala Lumpur is a one-hour hop from home and the pod has historically driven or taken a coach instead.",
+      "flight_cost_minor_by_tier": { "budget": 12000, "mid": 20000, "luxury": 60000 },
+      "regions": [
+        { "id": "kuala-lumpur", "name": "Kuala Lumpur", "latitude": 3.14, "longitude": 101.69 },
+        { "id": "penang", "name": "Penang", "latitude": 5.41, "longitude": 100.33 },
+        { "id": "johor", "name": "Johor", "latitude": 1.49, "longitude": 103.74 },
+        { "id": "malacca", "name": "Malacca", "latitude": 2.19, "longitude": 102.25 },
+        { "id": "langkawi", "name": "Langkawi", "latitude": 6.35, "longitude": 99.8 },
+        { "id": "genting-highlands", "name": "Genting Highlands", "latitude": 3.42, "longitude": 101.79 },
+        { "id": "cameron-highlands", "name": "Cameron Highlands", "latitude": 4.47, "longitude": 101.38 },
+        { "id": "sabah", "name": "Sabah", "latitude": 5.98, "longitude": 116.07 },
+        { "id": "sarawak", "name": "Sarawak", "latitude": 1.55, "longitude": 110.34 }
+      ],
+      "cities": [
+        {
+          "id": "kuala-lumpur",
+          "name": "Kuala Lumpur",
+          "region": "kuala-lumpur",
+          "latitude": 3.14,
+          "longitude": 101.69,
+          "activities": [
+            { "id": "kl_petronas", "title": "Petronas Twin Towers skybridge", "kind": "activity", "emoji": "\ud83c\udfd9\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 9800, "mid": 9800, "luxury": 9800 }, "tags": ["photo", "luxury"] },
+            { "id": "kl_batu", "title": "Batu Caves", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 1500, "luxury": 1500 }, "tags": ["culture", "adventure", "photo"] },
+            { "id": "kl_jalan_alor", "title": "Lunch at Jalan Alor hawker street", "kind": "meal", "emoji": "\ud83c\udf5c", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 3000, "mid": 6000, "luxury": 12000 }, "tags": ["food", "local", "night"] },
+            { "id": "kl_pavilion", "title": "Shopping at Pavilion KL", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping"] },
+            { "id": "kl_changkat", "title": "Changkat nightlife", "kind": "activity", "emoji": "\ud83c\udf19", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 8000, "mid": 12000, "luxury": 30000 }, "tags": ["night"] },
+            { "id": "kl_merdeka", "title": "Merdeka Square & colonial core", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture", "photo"] },
+            { "id": "kl_klcc_park", "title": "KLCC Park & fountain show", "kind": "activity", "emoji": "\u26f2", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "family", "photo"] },
+            { "id": "kl_bukit_bintang", "title": "Bukit Bintang street snacks", "kind": "meal", "emoji": "\ud83c\udf62", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 2500, "mid": 5000, "luxury": 10000 }, "tags": ["food", "local", "budget"] }
+          ],
+          "hotels": [
+            { "id": "kl_hotel_budget", "name": "Bukit Bintang hostel", "tier": "budget", "night_cost_minor": 7000, "emoji": "\ud83c\udfe8" },
+            { "id": "kl_hotel_mid", "name": "KLCC city hotel", "tier": "mid", "night_cost_minor": 32000, "emoji": "\ud83c\udfe8" },
+            { "id": "kl_hotel_luxury", "name": "Grand Hyatt Kuala Lumpur", "tier": "luxury", "night_cost_minor": 75000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "penang", "mode": "train", "title": "ETS train to Butterworth", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 5900, "mid": 7900, "luxury": 15000 }, "emoji": "\ud83d\ude86" },
+            { "city_id": "malacca", "mode": "bus", "title": "Express coach to Malacca Sentral", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 1800, "mid": 2500, "luxury": 12000 }, "emoji": "\ud83d\ude8c" },
+            { "city_id": "johor-bahru", "mode": "bus", "title": "Express coach to Johor Bahru", "duration_minutes": 270, "cost_minor_by_tier": { "budget": 3500, "mid": 4500, "luxury": 18000 }, "emoji": "\ud83d\ude8c" }
+          ]
+        },
+        {
+          "id": "penang",
+          "name": "Penang",
+          "region": "penang",
+          "latitude": 5.41,
+          "longitude": 100.33,
+          "activities": [
+            { "id": "pen_street_art", "title": "George Town street-art walk", "kind": "activity", "emoji": "\ud83d\uddbc\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["photo", "culture", "local"] },
+            { "id": "pen_food_crawl", "title": "Penang food crawl: assam laksa & char kway teow", "kind": "meal", "emoji": "\ud83c\udf5c", "duration_minutes": 180, "cost_minor_by_tier": { "budget": 3000, "mid": 6000, "luxury": 12000 }, "tags": ["food", "local", "budget"] },
+            { "id": "pen_hill", "title": "Penang Hill funicular", "kind": "activity", "emoji": "\ud83d\udea0", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 3000, "mid": 3000, "luxury": 8000 }, "tags": ["nature", "family", "photo"] },
+            { "id": "pen_gurney", "title": "Gurney Drive hawker dinner", "kind": "meal", "emoji": "\ud83c\udf7d\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 2500, "mid": 5000, "luxury": 10000 }, "tags": ["food", "local", "night"] },
+            { "id": "pen_kek_lok_si", "title": "Kek Lok Si temple", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["culture", "history"] },
+            { "id": "pen_heritage", "title": "George Town heritage walk", "kind": "activity", "emoji": "\ud83c\udfda\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture", "photo"] },
+            { "id": "pen_batu_ferringhi", "title": "Batu Ferringhi beach", "kind": "activity", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 150, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["relaxed", "nature"] }
+          ],
+          "hotels": [
+            { "id": "pen_hotel_budget", "name": "George Town shophouse hostel", "tier": "budget", "night_cost_minor": 6000, "emoji": "\ud83c\udfe8" },
+            { "id": "pen_hotel_mid", "name": "Heritage boutique hotel", "tier": "mid", "night_cost_minor": 26000, "emoji": "\ud83c\udfe8" },
+            { "id": "pen_hotel_luxury", "name": "Eastern & Oriental Hotel", "tier": "luxury", "night_cost_minor": 70000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "kuala-lumpur", "mode": "train", "title": "ETS train back to KL Sentral", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 5900, "mid": 7900, "luxury": 15000 }, "emoji": "\ud83d\ude86" }
+          ]
+        },
+        {
+          "id": "malacca",
+          "name": "Malacca",
+          "region": "malacca",
+          "latitude": 2.19,
+          "longitude": 102.25,
+          "activities": [
+            { "id": "mal_jonker", "title": "Jonker Street & Christ Church", "kind": "activity", "emoji": "\ud83c\udfdb\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture", "shopping"] },
+            { "id": "mal_river_cruise", "title": "Malacca River cruise", "kind": "activity", "emoji": "\u26f5", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 3000, "mid": 3000, "luxury": 3000 }, "tags": ["romantic", "photo"] },
+            { "id": "mal_chicken_rice", "title": "Chicken-rice balls dinner", "kind": "meal", "emoji": "\ud83c\udf7d\ufe0f", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 2000, "mid": 3500, "luxury": 7000 }, "tags": ["food", "local"] },
+            { "id": "mal_a_famosa", "title": "A Famosa & St Paul's Hill", "kind": "activity", "emoji": "\ud83c\udff0", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["history", "culture"] },
+            { "id": "mal_night_market", "title": "Jonker Street night market", "kind": "activity", "emoji": "\ud83c\udfee", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "night", "local"] },
+            { "id": "mal_peranakan_museum", "title": "Baba & Nyonya Heritage Museum", "kind": "activity", "emoji": "\ud83c\udffa", "duration_minutes": 75, "cost_minor_by_tier": { "budget": 1800, "mid": 1800, "luxury": 1800 }, "tags": ["culture", "history"] }
+          ],
+          "hotels": [
+            { "id": "mal_hotel_budget", "name": "Jonker Street guesthouse", "tier": "budget", "night_cost_minor": 6000, "emoji": "\ud83c\udfe8" },
+            { "id": "mal_hotel_mid", "name": "Riverside heritage hotel", "tier": "mid", "night_cost_minor": 22000, "emoji": "\ud83c\udfe8" },
+            { "id": "mal_hotel_luxury", "name": "The Majestic Malacca", "tier": "luxury", "night_cost_minor": 60000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "kuala-lumpur", "mode": "bus", "title": "Express coach back to KL", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 1800, "mid": 2500, "luxury": 12000 }, "emoji": "\ud83d\ude8c" }
+          ]
+        },
+        {
+          "id": "johor-bahru",
+          "name": "Johor Bahru",
+          "region": "johor",
+          "latitude": 1.49,
+          "longitude": 103.74,
+          "activities": [
+            { "id": "jb_legoland", "title": "Legoland Malaysia", "kind": "activity", "emoji": "\ud83c\udfa2", "duration_minutes": 360, "cost_minor_by_tier": { "budget": 19900, "mid": 24900, "luxury": 32900 }, "tags": ["themepark", "family"] },
+            { "id": "jb_desaru", "title": "Desaru Coast beach day", "kind": "activity", "emoji": "\ud83c\udfd6\ufe0f", "duration_minutes": 240, "cost_minor_by_tier": { "budget": 4000, "mid": 6000, "luxury": 12000 }, "tags": ["relaxed", "nature"] },
+            { "id": "jb_waterpark", "title": "Desaru Coast Adventure Waterpark", "kind": "activity", "emoji": "\ud83d\udca6", "duration_minutes": 300, "cost_minor_by_tier": { "budget": 16000, "mid": 20000, "luxury": 26000 }, "tags": ["family", "themepark", "adventure"] },
+            { "id": "jb_cafe_district", "title": "Dinner in the JB cafe district", "kind": "meal", "emoji": "\ud83c\udf7d\ufe0f", "duration_minutes": 90, "cost_minor_by_tier": { "budget": 2500, "mid": 4500, "luxury": 9000 }, "tags": ["food", "budget", "local"] },
+            { "id": "jb_city_square", "title": "JB City Square shopping", "kind": "activity", "emoji": "\ud83d\udecd\ufe0f", "duration_minutes": 120, "cost_minor_by_tier": { "budget": 0, "mid": 0, "luxury": 0 }, "tags": ["shopping", "budget"] },
+            { "id": "jb_glass_temple", "title": "Arulmigu Sri Rajakaliamman glass temple", "kind": "activity", "emoji": "\ud83d\uded5", "duration_minutes": 60, "cost_minor_by_tier": { "budget": 1000, "mid": 1000, "luxury": 1000 }, "tags": ["culture", "photo"] }
+          ],
+          "hotels": [
+            { "id": "jb_hotel_budget", "name": "JB city budget hotel", "tier": "budget", "night_cost_minor": 6500, "emoji": "\ud83c\udfe8" },
+            { "id": "jb_hotel_mid", "name": "Puteri Harbour hotel", "tier": "mid", "night_cost_minor": 24000, "emoji": "\ud83c\udfe8" },
+            { "id": "jb_hotel_luxury", "name": "Desaru Coast beach resort", "tier": "luxury", "night_cost_minor": 70000, "emoji": "\ud83c\udfe8" }
+          ],
+          "transport_to": [
+            { "city_id": "kuala-lumpur", "mode": "bus", "title": "Express coach back to KL", "duration_minutes": 270, "cost_minor_by_tier": { "budget": 3500, "mid": 4500, "luxury": 18000 }, "emoji": "\ud83d\ude8c" }
+          ]
+        }
+      ]
+    }
+  ]
+}

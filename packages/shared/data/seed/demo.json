@@ -1,0 +1,126 @@
+/**
+ * Demo pod seed -- documentation twin of `services/api/src/db/seed.ts`.
+ *
+ * PURPOSE
+ *   Human-readable copy of the rows `npm run db:seed` upserts. The seeder is
+ *   the authority; this file exists so a contributor can see the demo world
+ *   without reading SQL. Keep the two in step when you add a row.
+ *
+ * FIXED UUIDS (idempotent)
+ *   alex  00000000-0000-0000-0000-000000000001
+ *   sarah 00000000-0000-0000-0000-000000000002
+ *   john  00000000-0000-0000-0000-000000000003
+ *   emily 00000000-0000-0000-0000-000000000004
+ *   pod   00000000-0000-0000-0000-0000000000aa
+ *
+ * Credentials are NOT here. The security service creates those; this seed
+ * only upserts profile rows so the API has something to join against.
+ */
+{
+  "users": [
+    {
+      "id": "00000000-0000-0000-0000-000000000001",
+      "email": "alex@peapod.local",
+      "display_name": "Alex",
+      "role": "user",
+      "permissions_granted": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000002",
+      "email": "sarah@peapod.local",
+      "display_name": "Sarah",
+      "role": "user",
+      "permissions_granted": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000003",
+      "email": "john@peapod.local",
+      "display_name": "John",
+      "role": "user",
+      "permissions_granted": true
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000004",
+      "email": "emily@peapod.local",
+      "display_name": "Emily",
+      "role": "user",
+      "permissions_granted": true
+    }
+  ],
+  "pod": {
+    "id": "00000000-0000-0000-0000-0000000000aa",
+    "name": "The Pod",
+    "emoji": "🫘",
+    "group_type": "friends",
+    "created_by_id": "00000000-0000-0000-0000-000000000001",
+    "members": [
+      { "user_id": "00000000-0000-0000-0000-000000000001", "role": "admin" },
+      { "user_id": "00000000-0000-0000-0000-000000000002", "role": "member" },
+      { "user_id": "00000000-0000-0000-0000-000000000003", "role": "member" },
+      { "user_id": "00000000-0000-0000-0000-000000000004", "role": "member" }
+    ]
+  },
+  "places": [
+    { "name": "Home", "category": "home", "latitude": 1.3521, "longitude": 103.8198, "address": "Central Singapore" },
+    { "name": "Gardens by the Bay", "category": "date", "latitude": 1.2816, "longitude": 103.8636, "address": "18 Marina Gardens Dr" },
+    { "name": "East Coast Park", "category": "other", "latitude": 1.3006, "longitude": 103.9122, "address": "East Coast Park Service Rd" },
+    { "name": "Tiong Bahru", "category": "food", "latitude": 1.2868, "longitude": 103.827, "address": "Tiong Bahru, Singapore" }
+  ],
+  "trips": [
+    {
+      "id": "00000000-0000-0000-0000-0000000000b1",
+      "title": "Japan — Tokyo, Kyoto, Osaka",
+      "destination": "Japan",
+      "country": "Japan",
+      "status": "completed",
+      "origin": "manual",
+      "start_date": "2026-03-10",
+      "end_date": "2026-03-18",
+      "cities": ["Tokyo", "Kyoto", "Osaka"]
+    },
+    {
+      "id": "00000000-0000-0000-0000-0000000000b2",
+      "title": "UK — London & Edinburgh",
+      "destination": "United Kingdom",
+      "country": "United Kingdom",
+      "status": "planned",
+      "origin": "decide_together",
+      "start_date": "2027-03-14",
+      "end_date": "2027-03-21",
+      "cities": ["London", "Edinburgh"]
+    }
+  ],
+  "ideas": [
+    {
+      "id": "00000000-0000-0000-0000-0000000000c1",
+      "title": "Weekend in Penang",
+      "category": "travel",
+      "destination": "Penang",
+      "country": "Malaysia",
+      "votes": { "alex": "want", "sarah": "want", "john": "maybe", "emily": "want" }
+    },
+    {
+      "id": "00000000-0000-0000-0000-0000000000c2",
+      "title": "Pottery class in Joo Chiat",
+      "category": "activity",
+      "votes": { "alex": "want", "sarah": "want" }
+    }
+  ],
+  "wallet": {
+    "currency": "SGD",
+    "balance_minor": 248500,
+    "simulated": true,
+    "note": "S$2,485.00 cached sum of the seed ledger. No real money moves."
+  },
+  "garden": [
+    { "catalog_id": "earn_sakura", "name": "Sakura Tree", "slot": 0, "provenance": "earned", "source_label": "From \"Japan — Tokyo, Kyoto, Osaka\"" },
+    { "catalog_id": "earn_companion", "name": "Companion Sprout", "slot": 1, "provenance": "earned", "source_label": "From everyday time together" }
+  ],
+  "memories": [
+    { "title": "Our first trip to Japan", "date": "2023-11-04", "location": "Kyoto, Japan", "tag": "travel" },
+    { "title": "Our Merlion Visit", "date": "2026-08-17", "location": "Marina Bay, Singapore", "tag": "place" }
+  ],
+  "important_dates": [
+    { "title": "Together since", "date": "2023-08-17", "count_up": true, "pinned": true, "emoji": "💛" }
+  ]
+}

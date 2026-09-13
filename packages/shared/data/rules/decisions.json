@@ -1,0 +1,123 @@
+{
+  "$schemaVersion": 1,
+  "_comment": [
+    "The Decide Together rules. This is the most product-critical file in the repo: it encodes how a pod turns a",
+    "loose idea into an agreed plan, and the fairness guarantees that make members willing to vote honestly.",
+    "",
+    "THE NON-NEGOTIABLE RULE: no member ever sees anybody's stance, or the aggregate, before every member has",
+    "responded. The swipe queue shows only the proposal. This prevents bandwagoning, and the API enforces it by",
+    "stripping vote data from responses while an idea is still in the 'deciding' stage.",
+    "",
+    "PIPELINE:",
+    "  idea created (creator pre-votes, so they never swipe their own)",
+    "    -> everyone votes, hidden",
+    "      -> outcome revealed once all_voted",
+    "        -> everyone_in   : becomes a real Plan / Trip immediately",
+    "        -> work_it_out   : divided; opens compromise negotiation with an AI proposal",
+    "        -> maybe_later   : interesting but the pod is not ready",
+    "        -> not_for_us    : archived"
+  ],
+
+  "categories": [
+    { "id": "travel", "label": "Travel", "emoji": "\u2708\ufe0f" },
+    { "id": "food", "label": "Food", "emoji": "\ud83c\udf5c" },
+    { "id": "activity", "label": "Activity", "emoji": "\ud83c\udfa8" },
+    { "id": "nature", "label": "Nature", "emoji": "\ud83c\udf3f" },
+    { "id": "culture", "label": "Culture", "emoji": "\ud83c\udfdb\ufe0f" },
+    { "id": "adventure", "label": "Adventure", "emoji": "\ud83e\uddd7" },
+    { "id": "themepark", "label": "Theme Park", "emoji": "\ud83c\udfa2" },
+    { "id": "shopping", "label": "Shopping", "emoji": "\ud83d\udecd\ufe0f" }
+  ],
+
+  "harmony": {
+    "_comment": [
+      "harmony = ((want + maybe*0.5) / total) * 100 - (no / total) * 15, then adjusted and clamped to 0..100.",
+      "A 'maybe' counts as half support because it is genuine partial interest, not an abstention. A 'no' costs an",
+      "extra 15-point-weighted penalty on top of contributing nothing, because one person actively opposed is worth",
+      "more than one person merely absent when deciding whether a plan is worth pushing."
+    ],
+    "maybeWeight": 0.5,
+    "noPenaltyWeight": 15,
+    "creatorWantedBonus": {
+      "value": 4,
+      "why": "The proposer being enthusiastic is a small positive signal about how likely the plan is to actually happen."
+    },
+    "aiSourcePenalty": {
+      "value": 4,
+      "why": "A machine suggestion is ranked slightly below a human's at equal support, so the pod's own ideas surface first."
+    },
+    "clamp": { "min": 0, "max": 100 }
+  },
+
+  "outcomeRules": {
+    "_comment": [
+      "Evaluated in this exact order once every member has voted. Order is load-bearing: 'everyone_in' must be",
+      "checked before the 'no' majority rule, and the maybe rule before the fallback."
+    ],
+    "order": [
+      {
+        "outcome": "everyone_in",
+        "condition": "want == total",
+        "why": "Unanimous enthusiasm. Becomes a real plan with no further negotiation."
+      },
+      {
+        "outcome": "not_for_us",
+        "condition": "no >= ceil(total / 2) AND want < no",
+        "why": "At least half actively oppose it and opposition outweighs support. Archived. Uses ceil so a 3-member pod needs 2 objections, not 1.5."
+      },
+      {
+        "outcome": "maybe_later",
+        "condition": "maybe >= want AND maybe >= no AND want < total",
+        "why": "Lukewarm across the board. Nobody is against it, but there is not enough energy to plan it now."
+      },
+      {
+        "outcome": "work_it_out",
+        "condition": "otherwise",
+        "why": "Genuinely divided -- real support and real opposition coexist. This is the only outcome that opens the compromise flow."
+      }
+    ]
+  },
+
+  "stageMapping": {
+    "_comment": "Outcome to pipeline stage. 'considering' is the Work It Out bucket. The legacy stages 'discussing' and 'becoming_real' both collapse to 'planned': once a pod agrees, the idea becomes a Plan in the unified list and there is no separate planning-together stage.",
+    "deciding": "deciding",
+    "everyone_in": "planned",
+    "work_it_out": "considering",
+    "maybe_later": "maybe_later",
+    "not_for_us": "archived",
+    "legacyAliases": {
+      "discussing": "planned",
+      "becoming_real": "planned"
+    }
+  },
+
+  "outcomeCopy": {
+    "everyone_in": { "label": "\ud83c\udf89 Everyone's in!", "line": "Let's start planning." },
+    "work_it_out": { "label": "Your Pod isn't fully aligned yet", "line": "Can you make this work for everyone?" },
+    "maybe_later": { "label": "Maybe later", "line": "Interesting idea -- but the Pod isn't ready to plan it yet." },
+    "not_for_us": { "label": "Not for us", "line": "Not enough interest -- saved to the archive." },
+    "deciding": { "label": "Deciding together", "line": "Everyone gets a chance to respond." }
+  },
+
+  "boardSections": [
+    { "id": "considering", "label": "Work it out", "emoji": "\ud83e\udd1d", "blurb": "You're divided -- let's find a compromise." },
+    { "id": "maybe_later", "label": "Maybe Later", "emoji": "\ud83c\udf19", "blurb": "Interested, but not right now." }
+  ],
+
+  "compromiseFallbacks": {
+    "_comment": "Used when no AI provider is configured, or when the provider call fails. Generated from the idea's own shape so the suggestions are still specific rather than generic filler.",
+    "longTripDaysThreshold": 6,
+    "longTripTemplate": "Shorten to {days} days",
+    "generic": [
+      "Lower the budget range",
+      "Replace the part that doesn't fit",
+      "Make that part optional"
+    ],
+    "maxSuggestions": 3
+  },
+
+  "aiSuggestionInterleave": {
+    "_comment": "Peapod's own suggestions are mixed evenly into the swipe queue rather than batched, so the pod never hits a run of machine ideas in a row.",
+    "everyNthCard": 4
+  }
+}

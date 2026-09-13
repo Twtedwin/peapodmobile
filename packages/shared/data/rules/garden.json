@@ -1,0 +1,131 @@
+{
+  "$schemaVersion": 1,
+  "_comment": [
+    "The garden. Its whole design rests on one distinction the product cares deeply about:",
+    "",
+    "  EARNED seeds are granted only by real shared experiences and can NEVER be bought. A Sakura seed means the",
+    "  pod actually went to Japan. A Memory Tree means they hit a real milestone. These carry the meaning.",
+    "",
+    "  SHOP seeds and decorations are cosmetic, cost Peanuts, and never represent a specific moment.",
+    "",
+    "Two further rules that must survive any refactor: plants never die and growth never decreases, so the garden",
+    "never punishes a pod for being away; and plot capacity comes only from levelling up, never from a purchase."
+  ],
+
+  "rarities": {
+    "common": { "label": "Common", "blurb": "Little everyday moments." },
+    "special": { "label": "Special", "blurb": "Something you did together that mattered." },
+    "rare": { "label": "Rare", "blurb": "A milestone you'll remember." },
+    "treasured": { "label": "Treasured", "blurb": "Once-in-a-lifetime." }
+  },
+
+  "species": {
+    "_comment": "What a fully grown plant becomes, and the Peanuts harvesting it yields. 'experience' is the real-life moment the species stands for.",
+    "items": [
+      { "id": "companion", "name": "Clover", "emoji": "\ud83c\udf40", "rarity": "common", "experience": "Spent meaningful time together", "peanutYield": 5 },
+      { "id": "discovery", "name": "Compass Flower", "emoji": "\ud83c\udf3c", "rarity": "common", "experience": "Visited a new place", "peanutYield": 5 },
+      { "id": "culinary", "name": "Vine Tomato", "emoji": "\ud83c\udf45", "rarity": "common", "experience": "Cooked a meal together", "peanutYield": 5 },
+      { "id": "nature", "name": "Wild Bloom", "emoji": "\ud83c\udf38", "rarity": "common", "experience": "Time in nature", "peanutYield": 6 },
+      { "id": "adventure", "name": "Mountain Pine", "emoji": "\ud83c\udf32", "rarity": "special", "experience": "Completed a trip together", "peanutYield": 25 },
+      { "id": "milestone", "name": "Golden Pea", "emoji": "\ud83e\uded8", "rarity": "rare", "experience": "Reached a milestone", "peanutYield": 60 },
+      { "id": "treasured", "name": "Everlasting Bloom", "emoji": "\ud83c\udf3a", "rarity": "treasured", "experience": "A once-in-a-lifetime moment", "peanutYield": 120 }
+    ]
+  },
+
+  "shopSeeds": {
+    "_comment": "Purchasable with Peanuts. Cosmetic only. growsSeconds is real elapsed time from planting.",
+    "items": [
+      { "id": "seed_clover", "name": "Clover Seed", "emoji": "\ud83c\udf40", "rarity": "common", "peanutCost": 40, "growsSeconds": 45, "produce": "Clover", "description": "A little everyday green. Easy to grow." },
+      { "id": "seed_lavender", "name": "Lavender Seed", "emoji": "\ud83c\udf3f", "rarity": "common", "peanutCost": 120, "growsSeconds": 75, "produce": "Lavender", "description": "Calming and fragrant. A garden favourite." },
+      { "id": "seed_tulip", "name": "Tulip Bulb", "emoji": "\ud83c\udf37", "rarity": "special", "peanutCost": 160, "growsSeconds": 85, "produce": "Tulip", "description": "A pop of spring colour." },
+      { "id": "seed_sunflower", "name": "Sunflower Seed", "emoji": "\ud83c\udf3b", "rarity": "special", "peanutCost": 260, "growsSeconds": 100, "produce": "Sunflower", "description": "Tall and warm. Marks the seasons you share." },
+      { "id": "seed_rose", "name": "Rose Cutting", "emoji": "\ud83c\udf39", "rarity": "special", "peanutCost": 380, "growsSeconds": 120, "produce": "Rose Bush", "description": "A touch of romance in the soil." }
+    ]
+  },
+
+  "earnedSeeds": {
+    "_comment": "Never purchasable. Granted by the API when the triggering experience actually happens. triggerTypes maps to a Memory tag or a trip property.",
+    "items": [
+      { "id": "earn_companion", "name": "Companion Seed", "emoji": "\ud83c\udf31", "rarity": "common", "growsSeconds": 45, "produce": "Companion Sprout", "description": "Earned from everyday time spent together.", "triggerTypes": ["everyday"] },
+      { "id": "earn_compass", "name": "Compass Seed", "emoji": "\ud83c\udf3c", "rarity": "common", "growsSeconds": 55, "produce": "Compass Flower", "description": "Earned by visiting a new place.", "triggerTypes": ["place", "discovery"] },
+      { "id": "earn_pine", "name": "Pine Cone", "emoji": "\ud83c\udf32", "rarity": "special", "growsSeconds": 90, "produce": "Mountain Pine", "description": "Earned by completing a trip together.", "triggerTypes": ["travel"] },
+      { "id": "earn_sakura", "name": "Sakura Seed", "emoji": "\ud83c\udf38", "rarity": "special", "growsSeconds": 110, "produce": "Sakura Tree", "description": "Earned from a Japan trip together.", "triggerTypes": ["japan"] },
+      { "id": "earn_memorytree", "name": "Memory Tree Seed", "emoji": "\ud83c\udf33", "rarity": "rare", "growsSeconds": 140, "produce": "Memory Tree", "description": "Earned from an important Pod milestone.", "triggerTypes": ["milestone", "anniversary"] },
+      { "id": "earn_everlasting", "name": "Everlasting Seed", "emoji": "\ud83c\udf3a", "rarity": "treasured", "growsSeconds": 180, "produce": "Everlasting Bloom", "description": "Earned from a once-in-a-lifetime moment.", "triggerTypes": ["treasured"] }
+    ]
+  },
+
+  "decor": {
+    "_comment": "Cosmetic purchases. Always render as fully grown.",
+    "items": [
+      { "id": "dec_gnome", "name": "Garden Pea", "emoji": "\ud83e\uded8", "peanutCost": 150, "description": "A tiny guardian for the plot." },
+      { "id": "dec_lantern", "name": "Stone Lantern", "emoji": "\ud83c\udfee", "peanutCost": 220, "description": "A soft light for evenings in the garden." },
+      { "id": "dec_stones", "name": "Stepping Stones", "emoji": "\ud83e\udea8", "peanutCost": 120, "description": "A winding path through the beds." },
+      { "id": "dec_chime", "name": "Wind Chime", "emoji": "\ud83c\udf90", "peanutCost": 280, "description": "A gentle sound on the breeze." },
+      { "id": "dec_bench", "name": "Wooden Bench", "emoji": "\ud83e\ude91", "peanutCost": 320, "description": "A quiet spot to sit together." },
+      { "id": "dec_birdhouse", "name": "Bird House", "emoji": "\ud83d\udc26", "peanutCost": 340, "description": "Invites a little company." },
+      { "id": "dec_trellis", "name": "Trellis Arch", "emoji": "\ud83e\ude9f", "peanutCost": 440, "description": "A frame for things that climb." },
+      { "id": "dec_pond", "name": "Tiny Pond", "emoji": "\ud83d\udca7", "peanutCost": 520, "description": "Still water, a little life." }
+    ]
+  },
+
+  "crops": {
+    "_comment": "The lighter farm crops, unlocked progressively by level. Shorter grow times and smaller yields than the meaningful species.",
+    "items": [
+      { "id": "carrot", "name": "Carrot", "emoji": "\ud83e\udd55", "growSeconds": 6, "peanutYield": 5, "unlockedAtLevel": 1 },
+      { "id": "strawberry", "name": "Strawberry", "emoji": "\ud83c\udf53", "growSeconds": 10, "peanutYield": 8, "unlockedAtLevel": 1 },
+      { "id": "sunflower", "name": "Sunflower", "emoji": "\ud83c\udf3b", "growSeconds": 14, "peanutYield": 12, "unlockedAtLevel": 2 },
+      { "id": "pumpkin", "name": "Pumpkin", "emoji": "\ud83c\udf83", "growSeconds": 18, "peanutYield": 18, "unlockedAtLevel": 2 },
+      { "id": "blueberry", "name": "Blueberry", "emoji": "\ud83e\uded0", "growSeconds": 16, "peanutYield": 15, "unlockedAtLevel": 3 },
+      { "id": "goldenpea", "name": "Golden Pea", "emoji": "\ud83e\uded8", "growSeconds": 24, "peanutYield": 30, "unlockedAtLevel": 3, "rare": true }
+    ]
+  },
+
+  "growth": {
+    "_comment": "growth = min(1, elapsedSeconds / growsSeconds + waterBoost). A pre-seeded plant (null plantedAt) and any decoration are always 1.0.",
+    "waterBoostPerWatering": {
+      "value": 0.3,
+      "why": "Watering nudges a plant forward by 30% of its total grow time. Capped so watering repeatedly cannot instantly mature a plant."
+    },
+    "waterBoostCap": 1.0
+  },
+
+  "memoryTagToSpecies": {
+    "_comment": "Which species a memory's tag grows. Checked in this order; the first match wins.",
+    "milestone": "milestone",
+    "anniversary": "milestone",
+    "travel": "adventure",
+    "place": "discovery",
+    "activity": "culinary",
+    "culinary": "culinary",
+    "nature": "nature",
+    "treasured": "treasured",
+    "_default": "companion"
+  },
+
+  "memoryTagToEarnedSeed": {
+    "_comment": "Which earned seed a memory grants. Evaluated in order: an explicit milestone tag wins, then a Japan location match (which is why Sakura is special), then the general tags.",
+    "order": [
+      { "match": "tag", "values": ["milestone", "anniversary"], "seed": "earn_memorytree" },
+      { "match": "locationOrTitleContains", "values": ["japan"], "seed": "earn_sakura" },
+      { "match": "tag", "values": ["travel"], "seed": "earn_pine" },
+      { "match": "tag", "values": ["place", "discovery"], "seed": "earn_compass" },
+      { "match": "tag", "values": ["treasured"], "seed": "earn_everlasting" }
+    ],
+    "_default": "earn_companion"
+  },
+
+  "tripToEarnedSeed": {
+    "_comment": "Completing any trip grants a Pine Cone, except a Japan trip which grants the rarer Sakura.",
+    "order": [
+      { "match": "destinationContains", "values": ["japan"], "seed": "earn_sakura" }
+    ],
+    "_default": "earn_pine"
+  },
+
+  "slotLayout": {
+    "_comment": "How slots are arranged as a grid on the raised bed in the 3D world. Columns are ceil(sqrt(capacity)), and the grid is centred on the bed.",
+    "spreadX": 2.2,
+    "spreadZ": 1.4
+  }
+}

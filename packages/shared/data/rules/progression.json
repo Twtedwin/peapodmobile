@@ -1,0 +1,101 @@
+{
+  "$schemaVersion": 1,
+  "_comment": [
+    "Peapod's progression rules. These numbers were lifted verbatim from the original app so an existing pod's",
+    "level and Peanut balance mean exactly what they used to. This file is the single source of truth: the Rust",
+    "compute service embeds it at build time, the Node API reads it when awarding rewards, and the Expo app reads",
+    "it to render costs and thresholds. Never hardcode any of these values in a service -- change them here.",
+    "",
+    "Design intent worth preserving: rewards are tied to real shared experiences, not to grinding. Completing an",
+    "actual trip together is worth 500 Peanuts while harvesting a plant is worth 8, which keeps the currency",
+    "anchored to life rather than to app usage."
+  ],
+
+  "worldLevels": [
+    { "level": 1, "name": "Starting Point", "description": "A small home and garden -- just the two of you.", "xp": 0 },
+    { "level": 2, "name": "Growing Together", "description": "Garden unlocked. Plant your first seeds.", "xp": 120 },
+    { "level": 3, "name": "Exploring Together", "description": "Travel Board unlocked. The world wants to grow.", "xp": 280 },
+    { "level": 4, "name": "Shared Memories", "description": "Memory Gallery unlocked. Memories live here now.", "xp": 460 },
+    { "level": 5, "name": "Our Little World", "description": "More locations appear. Customize your world.", "xp": 700 },
+    { "level": 6, "name": "Boundless", "description": "What's next is up to you.", "xp": 1000 }
+  ],
+
+  "gardenPlotCapacity": {
+    "_comment": "Slots unlock with level: 2 + level*2, hard-capped at 12. The garden starts small and opens new ground as the pod grows. Capacity is never purchasable -- it always reflects real progression.",
+    "base": 2,
+    "perLevel": 2,
+    "max": 12
+  },
+
+  "xpRewards": {
+    "_comment": "XP granted per action. 'completeAchievement' is a fallback -- an achievement may carry its own xp value, which wins.",
+    "addMemory": 40,
+    "waterPlant": 3,
+    "gardenGrow": 12,
+    "addBucketItem": 15,
+    "scheduleDateActivity": 20,
+    "completeDateActivity": 40,
+    "planTrip": 30,
+    "completeTrip": 180,
+    "completeAchievement": 120
+  },
+
+  "peanutEarnRules": {
+    "_comment": "Peanuts granted per action, matching the original earn table.",
+    "addMemory": 30,
+    "addReview": 60,
+    "checkIn": 40,
+    "planTrip": 40,
+    "completeTrip": 500,
+    "completeAchievement": 250,
+    "harvestCrop": 8,
+    "addBucketItem": 15,
+    "completeDateActivity": 20,
+    "weeklyChallenge": 100,
+    "reachMilestone": 500
+  },
+
+  "startingBalances": {
+    "_comment": "What a brand-new pod begins with. A new pod starts at zero XP with a bare garden; the demo seed pod in data/seed/ deliberately starts further along so every screen has something to show.",
+    "xp": 0,
+    "peanuts": 0
+  },
+
+  "milestoneDays": {
+    "_comment": "Day counts celebrated by the scheduled milestone job, measured from the pod's earliest pinned count-up date.",
+    "days": [100, 200, 365, 500, 730, 1000]
+  },
+
+  "achievementTracks": [
+    {
+      "key": "pod_growth",
+      "title": "Pod Growth",
+      "metric": "peas_count",
+      "tiers": [
+        { "threshold": 1, "label": "First Pod", "description": "Created a pod" },
+        { "threshold": 2, "label": "First Pea", "description": "Someone joined your pod" },
+        { "threshold": 5, "label": "5 Peas", "description": "Your pod grew to 5" },
+        { "threshold": 10, "label": "10 Peas", "description": "Your pod grew to 10" }
+      ]
+    },
+    {
+      "key": "journey_log",
+      "title": "Journey Log",
+      "metric": "dates_count",
+      "tiers": [
+        { "threshold": 1, "label": "First Journey", "description": "Added your first date" }
+      ]
+    },
+    {
+      "key": "time_together",
+      "title": "Time Together",
+      "metric": "pinned_journey_days",
+      "tiers": [
+        { "threshold": 100, "label": "100 Days", "description": "100 days on your journey" },
+        { "threshold": 365, "label": "1 Year", "description": "A full year together" },
+        { "threshold": 730, "label": "2 Years", "description": "Two years strong" },
+        { "threshold": 1825, "label": "5 Years", "description": "Five years together" }
+      ]
+    }
+  ]
+}

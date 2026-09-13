@@ -1,0 +1,391 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://peapod.app/schemas/domain.schema.json",
+  "title": "PeapodDomain",
+  "description": "The product records that previously existed only as in-memory React state and static seed data. They are now first-class persisted records so a trip, a garden plant, or a wallet balance survives an app restart and is shared across every member of the pod. Money amounts are stored as integer minor units (cents) throughout -- never floats -- so splitting a bill can never lose or invent a fraction of a cent.",
+  "$defs": {
+    "TripStatus": {
+      "type": "string",
+      "description": "The trip lifecycle, preserved exactly from the original app. 'suggestion' is something Peapod proposed, 'draft' is being built in the wizard, 'planned' is agreed, 'booked' is paid for, 'completed' has happened and has fed the world, garden, and scratch map.",
+      "enum": ["suggestion", "draft", "planned", "booked", "completed"],
+      "default": "draft"
+    },
+    "TripOrigin": {
+      "type": "string",
+      "description": "How the trip came to exist. Rendered as a badge so members can tell an idea they voted into being from one somebody built by hand.",
+      "enum": ["manual", "peapod_suggested", "decide_together", "bucket_list"],
+      "default": "manual"
+    },
+    "VoteStance": {
+      "type": "string",
+      "description": "A member's stance on an idea. Deliberately three-valued: 'maybe' is a real answer, not a missing one, and it is what routes an idea to 'maybe later' instead of a compromise negotiation.",
+      "enum": ["want", "maybe", "no"]
+    },
+    "IdeaStage": {
+      "type": "string",
+      "description": "Where an idea sits in the decision pipeline. 'deciding' means not everyone has voted yet and no aggregate is revealed. 'considering' is the Work It Out bucket for a divided pod.",
+      "enum": ["deciding", "considering", "maybe_later", "planned", "archived", "converted"],
+      "default": "deciding"
+    },
+    "GardenEntryKind": {
+      "type": "string",
+      "description": "A garden slot holds either a plant (grows over time, may be harvested) or a decoration (cosmetic, always fully grown).",
+      "enum": ["plant", "decor"],
+      "default": "plant"
+    },
+    "SeedProvenance": {
+      "type": "string",
+      "description": "The distinction the product cares most about in the garden: 'earned' seeds are granted only by real shared experiences and can never be bought, while 'shop' seeds are cosmetic and cost Peanuts.",
+      "enum": ["earned", "shop"]
+    },
+
+    "Trip": {
+      "type": "object",
+      "description": "A trip and its generated itinerary. The itinerary and cost breakdown are stored as JSON documents rather than normalised tables because they are always read and written whole, and their shape is owned by the Rust itinerary generator.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "created_by_id": { "type": "string", "format": "uuid" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "updated_at": { "type": "string", "format": "date-time" },
+        "title": { "type": "string" },
+        "destination": { "type": "string", "description": "Human-readable headline destination, e.g. 'Japan' or 'Tokyo & Kyoto'." },
+        "country": { "type": ["string", "null"] },
+        "emoji": { "type": "string", "default": "\u2708\ufe0f" },
+        "status": { "$ref": "#/$defs/TripStatus" },
+        "origin": { "$ref": "#/$defs/TripOrigin" },
+        "start_date": { "type": ["string", "null"], "format": "date" },
+        "end_date": { "type": ["string", "null"], "format": "date" },
+        "flexible_dates": { "type": "boolean", "default": false, "description": "True when the pod picked a rough month rather than exact dates." },
+        "participant_ids": { "type": "array", "items": { "type": "string", "format": "uuid" }, "default": [] },
+        "cities": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "budget_minor": { "type": ["integer", "null"], "description": "Target budget in minor units (cents)." },
+        "currency": { "type": "string", "default": "SGD" },
+        "itinerary": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/ItineraryDay" },
+          "default": [],
+          "description": "Day-by-day plan produced by the compute service."
+        },
+        "cost_breakdown": { "type": "array", "items": { "$ref": "#/$defs/CostLine" }, "default": [] },
+        "rating": { "type": ["integer", "null"], "minimum": 1, "maximum": 5, "description": "Set after completion." },
+        "source_idea_id": { "type": ["string", "null"], "format": "uuid", "description": "Set when the trip was created by an agreed Decide Together idea." },
+        "completed_at": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "title", "destination", "status"]
+    },
+
+    "ItineraryDay": {
+      "type": "object",
+      "description": "One day of a trip. Activities are ordered and carry clock times so the editor can re-time a day when an activity is dragged.",
+      "properties": {
+        "day": { "type": "integer", "minimum": 1 },
+        "date": { "type": ["string", "null"], "format": "date" },
+        "city": { "type": "string" },
+        "summary": { "type": "string", "default": "" },
+        "activities": { "type": "array", "items": { "$ref": "#/$defs/ItineraryActivity" }, "default": [] }
+      },
+      "required": ["day", "city"]
+    },
+
+    "ItineraryActivity": {
+      "type": "object",
+      "description": "A single itinerary entry. 'locked' is true for flights and intercity trains: the editor must refuse to reorder them because everything else on the day is timed around them.",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "kind": {
+          "type": "string",
+          "enum": ["flight", "transfer", "hotel", "activity", "meal", "train", "free"],
+          "default": "activity"
+        },
+        "start_time": { "type": "string", "pattern": "^([01][0-9]|2[0-3]):[0-5][0-9]$", "description": "24-hour local clock time, HH:MM." },
+        "duration_minutes": { "type": "integer", "minimum": 0, "default": 60 },
+        "location": { "type": ["string", "null"] },
+        "notes": { "type": ["string", "null"] },
+        "cost_minor": { "type": "integer", "default": 0 },
+        "locked": { "type": "boolean", "default": false },
+        "emoji": { "type": "string", "default": "\ud83d\udccd" }
+      },
+      "required": ["id", "title", "start_time"]
+    },
+
+    "CostLine": {
+      "type": "object",
+      "description": "One line of a trip's cost breakdown. Lines sharing a label are merged and summed when the breakdown is rendered.",
+      "properties": {
+        "label": { "type": "string" },
+        "amount_minor": { "type": "integer" },
+        "currency": { "type": "string", "default": "SGD" },
+        "category": { "type": "string", "enum": ["flights", "accommodation", "activities", "food", "transport", "other"], "default": "other" }
+      },
+      "required": ["label", "amount_minor"]
+    },
+
+    "Idea": {
+      "type": "object",
+      "description": "A proposal in the Decide Together pipeline. Its stage is derived from its votes by the compute service, except when an operator has pinned an explicit stage.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "created_by_id": { "type": "string", "format": "uuid" },
+        "created_at": { "type": "string", "format": "date-time" },
+        "title": { "type": "string" },
+        "emoji": { "type": "string", "default": "\ud83d\udca1" },
+        "description": { "type": ["string", "null"] },
+        "destination": { "type": ["string", "null"] },
+        "country": { "type": ["string", "null"] },
+        "category": {
+          "type": "string",
+          "enum": ["travel", "food", "activity", "nature", "culture", "adventure", "themepark", "shopping"],
+          "default": "activity"
+        },
+        "source_type": {
+          "type": "string",
+          "enum": ["user", "ai"],
+          "default": "user",
+          "description": "AI-sourced ideas take a small harmony penalty so a human's proposal outranks a machine's at equal support."
+        },
+        "estimated_cost_minor": { "type": ["integer", "null"] },
+        "duration_days": { "type": ["integer", "null"], "minimum": 1 },
+        "activities": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "preferred_month": { "type": ["string", "null"] },
+        "preferred_dates": { "type": ["string", "null"] },
+        "creator_stance": { "$ref": "#/$defs/VoteStance", "description": "The creator's pre-vote, recorded at submission so they never swipe their own idea." },
+        "stage_override": { "type": ["string", "null"], "description": "When set, wins over the computed stage." },
+        "compromise_options": { "type": "array", "items": { "type": "string" }, "default": [] },
+        "ai_rationale": { "type": ["string", "null"] },
+        "converted_trip_id": { "type": ["string", "null"], "format": "uuid" }
+      },
+      "required": ["id", "pod_id", "title"]
+    },
+
+    "IdeaVote": {
+      "type": "object",
+      "description": "One member's stance on one idea. Unique per (idea, voter). Never exposed to other members until every member has voted -- the API filters these out of responses while the idea is still in 'deciding'.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "idea_id": { "type": "string", "format": "uuid" },
+        "voter_id": { "type": "string", "format": "uuid" },
+        "stance": { "$ref": "#/$defs/VoteStance" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "idea_id", "voter_id", "stance"]
+    },
+
+    "PodWorld": {
+      "type": "object",
+      "description": "One row per pod holding the shared progression counters. Level is always derived from xp rather than stored, so the two can never drift apart.",
+      "properties": {
+        "pod_id": { "type": "string", "format": "uuid" },
+        "xp": { "type": "integer", "minimum": 0, "default": 0 },
+        "peanuts": { "type": "integer", "minimum": 0, "default": 0, "description": "The pod's spendable currency." },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pod_id", "xp", "peanuts"]
+    },
+
+    "GardenEntry": {
+      "type": "object",
+      "description": "One occupied slot in the pod's garden. A plant with a null planted_at is a pre-seeded living record of a past memory and counts as fully grown; a plant with a planted_at grows in real time from that instant.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "kind": { "$ref": "#/$defs/GardenEntryKind" },
+        "slot": { "type": "integer", "minimum": 0, "description": "Zero-based slot index. Must be below the pod's plot capacity." },
+        "catalog_id": { "type": "string", "description": "Identifier into garden.json (a seed, species, or decoration)." },
+        "name": { "type": "string" },
+        "emoji": { "type": "string" },
+        "rarity": { "type": "string", "enum": ["common", "special", "rare", "treasured"], "default": "common" },
+        "provenance": { "$ref": "#/$defs/SeedProvenance" },
+        "source_label": { "type": ["string", "null"], "description": "Why this plant exists, e.g. 'From \u201cOur first trip to Japan\u201d'." },
+        "memory_id": { "type": ["string", "null"], "format": "uuid" },
+        "planted_at": { "type": ["string", "null"], "format": "date-time" },
+        "grows_seconds": { "type": "integer", "minimum": 0, "default": 60 },
+        "water_boost": { "type": "number", "minimum": 0, "maximum": 1, "default": 0, "description": "Additive growth bonus from watering, capped at 1.0. Growth never decreases and a plant never dies." },
+        "watered_at": { "type": ["string", "null"], "format": "date-time" },
+        "harvested_at": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "slot", "catalog_id", "name"]
+    },
+
+    "SeedInventoryItem": {
+      "type": "object",
+      "description": "An unplanted seed the pod owns, with how it was obtained. Earned seeds are the meaningful ones and are granted only by completing real experiences.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "catalog_id": { "type": "string" },
+        "provenance": { "$ref": "#/$defs/SeedProvenance" },
+        "quantity": { "type": "integer", "minimum": 0, "default": 1 },
+        "earned_reason": { "type": ["string", "null"] }
+      },
+      "required": ["id", "pod_id", "catalog_id", "provenance"]
+    },
+
+    "Memory": {
+      "type": "object",
+      "description": "A captured moment: photos, a caption, a place. Creating one awards XP and Peanuts and grants an earned garden seed chosen by the memory's tag.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "created_by_id": { "type": "string", "format": "uuid" },
+        "title": { "type": "string" },
+        "caption": { "type": ["string", "null"] },
+        "date": { "type": "string", "format": "date" },
+        "location": { "type": ["string", "null"] },
+        "latitude": { "type": ["number", "null"] },
+        "longitude": { "type": ["number", "null"] },
+        "tag": {
+          "type": "string",
+          "enum": ["everyday", "place", "travel", "milestone", "anniversary", "activity", "culinary", "nature", "treasured"],
+          "default": "everyday",
+          "description": "Drives which earned seed and which collectible the memory can unlock."
+        },
+        "photo_urls": { "type": "array", "items": { "type": "string" }, "default": [], "maxItems": 3 },
+        "trip_id": { "type": ["string", "null"], "format": "uuid" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "title", "date"]
+    },
+
+    "UnlockedCollectible": {
+      "type": "object",
+      "description": "Records that a pod has earned a collectible from the catalog. Collectibles are only ever unlocked by real activity -- a completed trip, a check-in, a milestone.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "catalog_id": { "type": "string" },
+        "earned_by": { "type": "string" },
+        "memory_id": { "type": ["string", "null"], "format": "uuid" },
+        "unlocked_at": { "type": "string", "format": "date-time" },
+        "displayed": { "type": "boolean", "default": false, "description": "True when the pod has placed this collectible as a landmark in their 3D world." }
+      },
+      "required": ["id", "pod_id", "catalog_id", "unlocked_at"]
+    },
+
+    "BucketListItem": {
+      "type": "object",
+      "description": "A dream destination. The product rule is that 'visited' is reachable only by completing a trip, never by editing the item directly.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "created_by_id": { "type": "string", "format": "uuid" },
+        "title": { "type": "string" },
+        "emoji": { "type": "string", "default": "\ud83c\udf1f" },
+        "country": { "type": ["string", "null"] },
+        "latitude": { "type": ["number", "null"] },
+        "longitude": { "type": ["number", "null"] },
+        "state": { "type": "string", "enum": ["dream", "planned", "visited"], "default": "dream" },
+        "trip_id": { "type": ["string", "null"], "format": "uuid" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "title"]
+    },
+
+    "DateActivity": {
+      "type": "object",
+      "description": "A date or activity scheduled from the activity library.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "created_by_id": { "type": "string", "format": "uuid" },
+        "catalog_id": { "type": ["string", "null"] },
+        "title": { "type": "string" },
+        "emoji": { "type": "string", "default": "\ud83d\udcc5" },
+        "is_online": { "type": "boolean", "default": false },
+        "scheduled_at": { "type": ["string", "null"], "format": "date-time" },
+        "participant_ids": { "type": "array", "items": { "type": "string", "format": "uuid" }, "default": [] },
+        "status": { "type": "string", "enum": ["scheduled", "completed", "cancelled"], "default": "scheduled" }
+      },
+      "required": ["id", "pod_id", "title"]
+    },
+
+    "Wallet": {
+      "type": "object",
+      "description": "The pod's shared wallet. Simulated: no real money moves until a payment provider is wired (see SETUP-EXTERNAL-APIS.md). Balance is integer minor units.",
+      "properties": {
+        "pod_id": { "type": "string", "format": "uuid" },
+        "currency": { "type": "string", "default": "SGD" },
+        "balance_minor": { "type": "integer", "default": 0 },
+        "updated_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["pod_id", "currency", "balance_minor"]
+    },
+
+    "WalletBill": {
+      "type": "object",
+      "description": "A recurring shared expense. split_percent maps user id to their percentage share; the compute service turns those percentages into exact minor-unit amounts that always sum to the total.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string" },
+        "emoji": { "type": "string", "default": "\ud83e\uddfe" },
+        "amount_minor": { "type": "integer", "minimum": 0 },
+        "due_date": { "type": "string", "format": "date" },
+        "frequency": { "type": "string", "enum": ["once", "weekly", "monthly", "yearly"], "default": "monthly" },
+        "paid_by_id": { "type": ["string", "null"], "format": "uuid" },
+        "split_percent": {
+          "type": "object",
+          "additionalProperties": { "type": "number" },
+          "default": {},
+          "description": "User id to percentage. Must sum to 100."
+        },
+        "category": { "type": "string", "default": "other" },
+        "last_paid_at": { "type": ["string", "null"], "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "name", "amount_minor", "due_date"]
+    },
+
+    "WalletGoal": {
+      "type": "object",
+      "description": "A travel fund: a savings goal members contribute to, optionally linked to a trip so it can be spent on booking it.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "name": { "type": "string" },
+        "emoji": { "type": "string", "default": "\u2708\ufe0f" },
+        "target_minor": { "type": "integer", "minimum": 1 },
+        "saved_minor": { "type": "integer", "minimum": 0, "default": 0 },
+        "trip_id": { "type": ["string", "null"], "format": "uuid" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "name", "target_minor"]
+    },
+
+    "WalletTransaction": {
+      "type": "object",
+      "description": "An append-only ledger entry. Every balance change writes one; the balance on the Wallet row is a cached sum and can always be rebuilt from these.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "actor_id": { "type": ["string", "null"], "format": "uuid" },
+        "kind": {
+          "type": "string",
+          "enum": ["deposit", "withdrawal", "bill_payment", "goal_contribution", "trip_booking", "request", "reward_redemption"]
+        },
+        "amount_minor": { "type": "integer", "description": "Signed: positive credits the wallet, negative debits it." },
+        "description": { "type": "string" },
+        "bill_id": { "type": ["string", "null"], "format": "uuid" },
+        "goal_id": { "type": ["string", "null"], "format": "uuid" },
+        "trip_id": { "type": ["string", "null"], "format": "uuid" },
+        "created_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "kind", "amount_minor", "description"]
+    },
+
+    "RewardRedemption": {
+      "type": "object",
+      "description": "A reward bought from the store with Peanuts.",
+      "properties": {
+        "id": { "type": "string", "format": "uuid" },
+        "pod_id": { "type": "string", "format": "uuid" },
+        "redeemed_by_id": { "type": "string", "format": "uuid" },
+        "catalog_id": { "type": "string" },
+        "peanut_cost": { "type": "integer", "minimum": 0 },
+        "redeemed_at": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "pod_id", "catalog_id", "peanut_cost"]
+    }
+  }
+}
