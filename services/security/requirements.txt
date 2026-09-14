@@ -33,11 +33,12 @@ fastapi==0.115.6
 starlette==0.41.3          # transitive: fastapi's ASGI foundation
 uvicorn==0.32.1
 
-# uvicorn[standard] extras, expanded so nothing is resolved at build time.
+# httptools / websockets / uvloop are optional performance extras. watchfiles
+# (uvicorn --reload) is omitted: it compiles a Rust crate and fails on Render's
+# read-only build filesystem.
 httptools==0.6.4           # fast HTTP/1.1 parser
 python-dotenv==1.0.1       # also used by pydantic-settings for .env loading
 PyYAML==6.0.2              # uvicorn --log-config support
-watchfiles==1.0.3          # --reload file watcher (dev only, harmless in prod)
 websockets==14.1
 # uvloop has no Windows wheels. Developers on Windows must still be able to
 # `pip install -r requirements.txt`, so the marker keeps it Linux/macOS-only.

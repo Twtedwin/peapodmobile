@@ -41,7 +41,7 @@ license = { text = "UNLICENSED" }
 dependencies = [
   # --- Web framework -------------------------------------------------------
   "fastapi>=0.115.6,<0.116",
-  "uvicorn[standard]>=0.32.1,<0.33",
+  "uvicorn>=0.32.1,<0.33",
 
   # --- Validation / settings ----------------------------------------------
   # Pydantic v2 (NOT v1): this codebase uses `model_validate`, `field_validator`,
