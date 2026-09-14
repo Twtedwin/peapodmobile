@@ -7,8 +7,11 @@ ios/
 node_modules/
 .expo/
 **/.expo/
+local.properties
 .env
 .env.*
+**/.env
+**/.env.local
 !.env.example
 *.apk
 *.aab

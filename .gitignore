@@ -57,6 +57,9 @@ ios/
 **/ios/
 **/android/**
 **/ios/**
+# Gradle local machine config + the Maps SDK key pasted there. Never commit.
+local.properties
+**/local.properties
 *.apk
 *.aab
 *.ipa

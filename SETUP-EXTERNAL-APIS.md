@@ -34,6 +34,14 @@ Items that **block store review** are marked.
    - Server: restrict by IP of the API host. Never ship this one in the app.
 4. Those restrictions **are** the security boundary. Native Maps keys are in the binary even though they do not use the `EXPO_PUBLIC_*` prefix.
 
+**Local Android key (stays on this machine).** After `npx expo prebuild --platform android`, paste into `android/local.properties` (gitignored):
+
+```
+MAPS_API_KEY=your_android_maps_key
+```
+
+Keep any existing `sdk.dir=...` line. Template: `android-local.properties.example`.
+
 **Env.**
 
 ```
@@ -42,7 +50,9 @@ GOOGLE_MAPS_ANDROID_API_KEY=
 GOOGLE_MAPS_SERVER_API_KEY=
 ```
 
-**Code change.** None if the env vars are set: `app.config.ts` already omits the `config.googleMaps` block when a key is absent, and includes it when present. To add Places Autocomplete, introduce a search field on the place sheet that calls Places and writes `latitude`/`longitude` — there is no client for it yet.
+`GOOGLE_MAPS_ANDROID_API_KEY` is the EAS/cloud fallback when `local.properties` is absent. Do not use `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID` — the native SDK does not read that name.
+
+**Code change.** Native builds use `apps/mobile/plugins/withMapsApiKeyFromLocalProperties.cjs` to set `com.google.android.geo.API_KEY` from `${MAPS_API_KEY}`. To add Places Autocomplete, introduce a search field on the place sheet that calls Places and writes `latitude`/`longitude` — there is no client for it yet.
 
 **Cost.** Maps SDK hits are billed per load; Places Autocomplete per session. Set a budget alarm.
 

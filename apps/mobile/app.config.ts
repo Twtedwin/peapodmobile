@@ -192,6 +192,9 @@ const config: ExpoConfig = {
         },
       },
     ],
+    // Last so it wins over any hardcoded com.google.android.geo.API_KEY.
+    // Reads android/local.properties MAPS_API_KEY at Gradle time.
+    './apps/mobile/plugins/withMapsApiKeyFromLocalProperties.cjs',
   ],
 
   experiments: {

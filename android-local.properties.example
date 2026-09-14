@@ -1,0 +1,11 @@
+# Copy the MAPS_API_KEY line into android/local.properties after:
+#
+#   npx expo prebuild --platform android
+#
+# android/local.properties is gitignored. Paste the Maps SDK for Android
+# key on the MAPS_API_KEY line only — never commit that file.
+#
+# Expo / Android Studio usually already wrote sdk.dir=... in the same file.
+# Keep that line. Add or replace only:
+#
+MAPS_API_KEY=paste-your-android-maps-key-here

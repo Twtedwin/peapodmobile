@@ -226,8 +226,19 @@ unconditionally free service.
 1. In Google Cloud, enable **Maps SDK for Android** and **Maps SDK for iOS**.
 2. Create platform-restricted keys: Android package `app.peapod.mobile` plus
    signing SHA-1, and iOS bundle identifier `app.peapod.mobile`.
-3. Put the keys in the root `.env` for local native builds, or set the same
-   names as EAS environment secrets:
+3. Put the Android key in **`android/local.properties`** on this machine only
+   (that file is gitignored). After `npx expo prebuild --platform android`,
+   open `android/local.properties` and add this line — do not replace
+   `sdk.dir` if it is already there:
+
+```
+MAPS_API_KEY=your_android_key
+```
+
+   See [`android-local.properties.example`](android-local.properties.example).
+   Gradle reads `MAPS_API_KEY` and writes it into the manifest as
+   `${MAPS_API_KEY}`. For EAS cloud builds (no local.properties), set
+   `GOOGLE_MAPS_ANDROID_API_KEY` as an EAS secret or in `eas.json` `env`.
 
 ```dotenv
 GOOGLE_MAPS_ANDROID_API_KEY=your_android_key
