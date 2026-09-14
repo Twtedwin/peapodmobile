@@ -1,0 +1,20 @@
+# EAS_NO_VCS uploads the working tree instead of a git archive.
+# Native folders are generated on the builder by `expo prebuild`; uploading a
+# local /android (or omitting splash-screen autolinking) is what produced
+# Theme.SplashScreen not found during :app:processReleaseResources.
+android/
+ios/
+node_modules/
+.expo/
+**/.expo/
+.env
+.env.*
+!.env.example
+*.apk
+*.aab
+*.ipa
+dist/
+build/
+coverage/
+.cache/
+tmp/

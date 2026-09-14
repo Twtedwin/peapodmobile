@@ -14,6 +14,7 @@
  */
 import type { ExpoConfig } from 'expo/config';
 
+import './load-expo-env-silent.ts';
 import mobileConfig from './apps/mobile/app.config.ts';
 
 function pluginsWithoutRouter(
@@ -27,6 +28,7 @@ function pluginsWithoutRouter(
 
 const config: ExpoConfig = {
   ...mobileConfig,
+  owner: "tanwte", // <--- Add it here at the root level
   plugins: [
     ['expo-router', { root: './apps/mobile/app' }],
     ...pluginsWithoutRouter(mobileConfig.plugins),

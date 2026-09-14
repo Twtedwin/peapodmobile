@@ -17,7 +17,6 @@
     "lint": "eslint ."
   },
   "dependencies": {
-    "@expo/env": "^2.4.3",
     "@expo/metro-runtime": "~57.0.15",
     "@expo/vector-icons": "^15.0.2",
     "@peapod/shared": "*",

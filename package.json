@@ -41,14 +41,19 @@
     "test": "npm run test --workspaces --if-present",
     "test:health": "npm run test:health --workspace @peapod/api && npm run test:health --workspace @peapod/mobile",
     "check": "npm run build:shared && npm run typecheck && npm run lint",
-    "postinstall": "node scripts/dedupe-react-native.mjs"
+    "postinstall": "node scripts/dedupe-react-native.mjs && node scripts/silence-expo-env-logs.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",
     "typescript": "~6.0.3"
   },
   "dependencies": {
+    "@expo/env": "~2.4.3",
+    "@peapod/mobile": "*",
     "expo": "^57.0.0",
+    "expo-splash-screen": "~57.0.9",
+    "expo-system-ui": "~57.0.4",
+    "expo-updates": "~57.0.22",
     "git": "^0.1.5",
     "react": "19.2.3",
     "react-dom": "19.2.3",

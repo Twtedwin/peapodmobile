@@ -22,7 +22,6 @@
  *
  * CONSUMED BY
  *   - Expo CLI and EAS Build (the whole file)
- *   - src/api/client.ts, via `Constants.expoConfig.extra.apiUrl`
  *
  * WHY .ts AND NOT app.json
  *   A static app.json cannot read environment variables. The API URL differs
@@ -32,36 +31,24 @@
  */
 
 import type { ExpoConfig } from 'expo/config';
-import { loadProjectEnv } from '@expo/env';
-import { dirname, resolve } from 'node:path';
+import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-// Dynamic config can execute before Expo CLI's normal dotenv phase. Load the
-// monorepo root explicitly; existing shell/EAS values retain precedence.
+/**
+ * Asset paths must be relative to the Expo project root, which in this
+ * monorepo is the repository root (EAS and `npx expo prebuild` both run
+ * there). `./assets/splash.png` would look at `<repo>/assets/splash.png`
+ * and miss the real files. Resolve from this file against the repo root so
+ * the path is always `./apps/mobile/assets/<file>`, independent of cwd.
+ */
 const mobileDirectory = dirname(fileURLToPath(import.meta.url));
-loadProjectEnv(resolve(mobileDirectory, '../..'), { silent: true });
+const repoRoot = resolve(mobileDirectory, '../..');
+const asset = (fileName: string): string =>
+  `./${relative(repoRoot, resolve(mobileDirectory, 'assets', fileName)).replaceAll('\\', '/')}`;
 
-/**
- * Where the Node API lives.
- *
- * This value is mandatory. Android emulator users set it to the host alias;
- * physical-device users set it to the laptop's active Wi-Fi IPv4 address.
- * Production builds set the same variable to the public HTTPS API origin.
- */
-const apiUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
-if (!apiUrl) {
-  throw new Error(
-    'EXPO_PUBLIC_API_URL is required. Add the API origin to the repository .env before starting Expo or running EAS Build.',
-  );
-}
-
-/**
- * Where the realtime WebSocket lives.
- *
- * Defaults to the API URL with the scheme swapped, because in every
- * environment so far the WebSocket is served by the same Fastify process.
- */
-const websocketUrl = apiUrl.replace(/^http/, 'ws');
+const icon = asset('icon.png');
+const adaptiveIcon = asset('adaptive-icon.png');
+const splashImage = asset('splash.png');
 
 // ---------------------------------------------------------------------------
 // MAPS - PLACEHOLDER API KEYS
@@ -94,13 +81,14 @@ const config: ExpoConfig = {
   version: '1.0.0',
   orientation: 'portrait',
   userInterfaceStyle: 'automatic',
+  icon,
   // SDK 57 / React Native 0.86 always use the New Architecture, so the former
   // `newArchEnabled` opt-in is no longer a valid manifest field.
 
   // The splash screen is configured through the expo-splash-screen plugin
-  // below rather than a top-level `splash` key, which SDK 54 supersedes. It is
-  // a flat colour rather than artwork because there is no image asset in the
-  // repository yet, and a missing asset path is a hard startup failure.
+  // below rather than a top-level `splash` key, which SDK 54 supersedes.
+  // Placeholder PNGs live in apps/mobile/assets; replace them with branded
+  // artwork when it exists. A missing path is a hard prebuild failure.
 
   ios: {
     bundleIdentifier: 'app.peapod.mobile',
@@ -139,6 +127,7 @@ const config: ExpoConfig = {
     // Play rejects an upload whose versionCode is not strictly greater than the
     // last one, and a hand-maintained number gets that wrong eventually.
     adaptiveIcon: {
+      foregroundImage: adaptiveIcon,
       backgroundColor: '#0F1512',
     },
     permissions: [
@@ -195,6 +184,12 @@ const config: ExpoConfig = {
       {
         backgroundColor: '#0F1512',
         resizeMode: 'contain',
+        image: splashImage,
+        imageWidth: 200,
+        android: {
+          backgroundColor: '#0F1512',
+          image: splashImage,
+        },
       },
     ],
   ],
@@ -205,10 +200,6 @@ const config: ExpoConfig = {
   },
 
   extra: {
-    /** Base URL of services/api. Read by src/api/client.ts. Auth is the same origin: the API proxies /auth/*. */
-    apiUrl,
-    /** Base URL of the realtime WebSocket. Read by src/api/realtime.ts. */
-    websocketUrl,
     /**
      * True when at least one Google Maps key was supplied, so the map wrapper
      * can pick a provider without re-reading environment variables (they are
@@ -216,9 +207,7 @@ const config: ExpoConfig = {
      */
     hasGoogleMapsKey: Boolean(googleMapsIosApiKey ?? googleMapsAndroidApiKey),
     eas: {
-      // Placeholder. `eas init` writes the real project id here on first use;
-      // until then EAS Build prompts for it rather than failing.
-      projectId: '00000000-0000-0000-0000-000000000000',
+      "projectId": "b0bb6413-d841-4ff2-9f55-1ec72c2a8172"
     },
   },
 };
