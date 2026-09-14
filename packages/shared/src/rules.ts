@@ -29,12 +29,12 @@
  *   comment can. `threshold()` below unwraps them.
  */
 
-import decisionsJson from '../data/rules/decisions.json';
-import gardenJson from '../data/rules/garden.json';
-import geoJson from '../data/rules/geo.json';
-import progressionJson from '../data/rules/progression.json';
-import collectiblesJson from '../data/catalog/collectibles.json';
-import rewardsJson from '../data/catalog/rewards.json';
+import decisionsJson from '../data/rules/decisions.json' with { type: 'json' };
+import gardenJson from '../data/rules/garden.json' with { type: 'json' };
+import geoJson from '../data/rules/geo.json' with { type: 'json' };
+import progressionJson from '../data/rules/progression.json' with { type: 'json' };
+import collectiblesJson from '../data/catalog/collectibles.json' with { type: 'json' };
+import rewardsJson from '../data/catalog/rewards.json' with { type: 'json' };
 
 // ---------------------------------------------------------------------------
 // Unwrapping helpers

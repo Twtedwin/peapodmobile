@@ -26,7 +26,7 @@
  *   Rust service's "never 500 for a content problem" rule.
  */
 
-import travelDatasetJson from '../../data/catalog/travel-dataset.json';
+import travelDatasetJson from '../../data/catalog/travel-dataset.json' with { type: 'json' };
 import type { BudgetTier, ItineraryRequest, ItineraryResponse, TripPace } from '../compute.js';
 import type { ActivityKind, CostCategory, CostLine, ItineraryActivity, ItineraryDay } from '../domain.js';
 
