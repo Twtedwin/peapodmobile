@@ -17,7 +17,7 @@
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
-    "types": ["node"],
+    "types": ["node", "node-cron"],
 
     "outDir": "./dist",
     "rootDir": "./src",
