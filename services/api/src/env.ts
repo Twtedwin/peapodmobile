@@ -117,6 +117,20 @@ if (!Number.isFinite(PORT) || PORT < 1 || PORT > 65535) {
   throw new Error(`PORT must be a TCP port number, got ${process.env.PORT}`);
 }
 
+const NODE_ENV = optional('NODE_ENV', 'development');
+const SECURITY_URL = loopbackHttp(optional('SECURITY_URL', 'http://127.0.0.1:8081')).replace(
+  /\/$/,
+  '',
+);
+if (NODE_ENV === 'production') {
+  const configured = process.env.SECURITY_URL?.trim();
+  if (!configured || /127\.0\.0\.1|localhost/i.test(SECURITY_URL)) {
+    throw new Error(
+      'SECURITY_URL is required in production and must be the HTTPS origin of services/security (not localhost). The API reverse-proxies /auth/* there; the 127.0.0.1:8081 default makes every login/register return 503 on a host like Render.',
+    );
+  }
+}
+
 /**
  * Typed runtime configuration.
  *
@@ -132,7 +146,7 @@ export const env = Object.freeze({
   DATABASE_URL: required('DATABASE_URL'),
 
   /** Base URL of the Python security service (no trailing slash). IPv4 loopback avoids Windows localhost → ::1 hitting a different process. */
-  SECURITY_URL: loopbackHttp(optional('SECURITY_URL', 'http://127.0.0.1:8081')),
+  SECURITY_URL,
 
   /**
    * Shared secret sent as `X-Internal-Token` on every `/internal/*` call.
@@ -174,7 +188,7 @@ export const env = Object.freeze({
   /** Server-side Maps key, restricted by IP. Unused by the core routes today. */
   GOOGLE_MAPS_SERVER_API_KEY: maybe('GOOGLE_MAPS_SERVER_API_KEY'),
 
-  NODE_ENV: optional('NODE_ENV', 'development'),
+  NODE_ENV,
 });
 
 export type Env = typeof env;

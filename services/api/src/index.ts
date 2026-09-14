@@ -23,7 +23,7 @@ async function main(): Promise<void> {
   const app = await buildApp();
   startJobs();
   await app.listen({ port: env.PORT, host: '0.0.0.0' });
-  app.log.info(`API listening on ${env.PORT}`);
+  app.log.info(`API listening on ${env.PORT}; /auth/* proxied to ${env.SECURITY_URL}`);
 }
 
 main().catch(async (err: unknown) => {

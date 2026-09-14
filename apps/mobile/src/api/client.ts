@@ -33,7 +33,9 @@ export const apiUrl: string = configuredApiUrl.replace(/\/$/, '');
  */
 export const authBaseUrl: string = apiUrl;
 
-export const websocketUrl: string = apiUrl.replace(/^http/, 'ws');
+export const websocketUrl: string = (
+  process.env.EXPO_PUBLIC_WEBSOCKET_URL?.trim() || apiUrl.replace(/^http/, 'ws')
+).replace(/\/$/, '');
 
 /**
  * A failed request, with enough context for a retry button and nothing that
@@ -93,8 +95,16 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 function messageFromBody(body: unknown, fallback: string): string {
   if (!body || typeof body !== 'object') return fallback;
   const record = body as Record<string, unknown>;
+  if (typeof record.error === 'string') return record.error;
   if (typeof record.message === 'string') return record.message;
   if (typeof record.detail === 'string') return record.detail;
+  if (record.detail && typeof record.detail === 'object') {
+    const inner = record.detail as Record<string, unknown>;
+    if (typeof inner.detail === 'string') return inner.detail;
+    if (inner.email_sent !== undefined || inner.detail === 'email not verified') {
+      return 'Verify your email first. We sent a new 6-digit code.';
+    }
+  }
   if (record.error && typeof record.error === 'object') {
     const inner = record.error as Record<string, unknown>;
     if (typeof inner.message === 'string') return inner.message;
@@ -232,7 +242,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
         ? cause.message
         : 'Network request failed';
     throw new ApiError(
-      `Could not reach Peapod (${reason}). Check you are on the same Wi-Fi and that EXPO_PUBLIC_API_URL is your laptop's LAN IP.`,
+      `Could not reach Peapod (${reason}). Check EXPO_PUBLIC_API_URL and that the API is running.`,
       0,
       path,
       null,

@@ -102,6 +102,60 @@ npm run seed:security
 
 Log in as `alex@peapod.local` / `peapod-demo-12` (development only). One-time codes for new registrations are printed to the **security** terminal (`DEV EMAIL FALLBACK`) until an email provider is configured. See [SETUP-EXTERNAL-APIS.md](SETUP-EXTERNAL-APIS.md).
 
+## Authentication
+
+The Expo app talks **only** to `services/api`. Fastify reverse-proxies `/auth/*` onto the Python security service (`SECURITY_URL`). There is no `/api/v1` prefix. Credentials never land in Node: the body is forwarded and the security response is echoed.
+
+```text
+app  →  POST https://<api>/auth/register        →  security POST /auth/register
+     →  POST https://<api>/auth/verify-otp      →  security POST /auth/verify-otp
+     →  POST https://<api>/auth/resend-otp      →  security POST /auth/resend-otp
+     →  POST https://<api>/auth/login           →  security POST /auth/login
+     →  POST https://<api>/auth/forgot-password →  security POST /auth/forgot-password
+     →  POST https://<api>/auth/reset-password  →  security POST /auth/reset-password
+     →  POST https://<api>/auth/refresh         →  security POST /auth/refresh
+     →  GET  https://<api>/auth/me              →  security GET  /auth/me
+```
+
+Behaviour that matters when debugging:
+
+- **Register** returns `201 { user_id, email_sent }`. Tokens are issued only after `verify-otp`. If Resend rejects the mail, `email_sent` is `false` and the security logs print `email provider status=` plus the raw body.
+- **Login** with a correct password on an unverified account is `403` (not `401`) and re-sends the OTP.
+- **Forgot-password** and **resend-otp** always return `{ email_sent: true }` so they cannot enumerate accounts. Whether Resend accepted the message is in the security logs, not the JSON.
+- **503** on `/auth/*` means the API could not reach `SECURITY_URL` (timeout 15s, or the loopback default on a host like Render). A 4xx from security is forwarded as-is.
+
+`INTERNAL_SERVICE_TOKEN` is **not** sent on the public `/auth/*` proxy. The API uses it only for `/internal/verify-token` and `/internal/authorize`.
+
+## Cloud (Render)
+
+Current hosted API (preview EAS builds and LAN-independent testing):
+
+| Surface | URL |
+|---------|-----|
+| HTTP API | `https://peapod-api.onrender.com` |
+| WebSocket | `wss://peapod-api.onrender.com` (`/realtime`) |
+| Security | a **separate** Render Web Service; put its HTTPS origin in the API's `SECURITY_URL` |
+
+The production EAS profile still compiles `https://api.peapod.app` (custom domain). Until that hostname is live, use the Render origin above.
+
+### Node API service
+
+- Root Directory: **repository root** (`@peapod/api` depends on `@peapod/shared`; do not set Root Directory to `services/api` unless the build already copies the workspace).
+- Build: `npm ci --workspace=@peapod/shared --workspace=@peapod/api --include-workspace-root && npm run build --workspace=@peapod/shared && npm run build --workspace=@peapod/api`
+- Start: `npm run start --workspace=@peapod/api` (`node dist/index.js`). Render injects `PORT`. The process reads **`PORT`**, not `API_PORT`.
+- Required env: `DATABASE_URL` (Render Postgres), `SECURITY_URL` (HTTPS origin of the Python service, **no trailing slash, not localhost**), `INTERNAL_SERVICE_TOKEN` (same value as security), `NODE_ENV=production`.
+- Production refuses to boot if `SECURITY_URL` is missing or still `127.0.0.1` / `localhost`.
+
+### Python security service
+
+- Root Directory: `services/security`
+- Build: `pip install -r requirements.txt`
+- Start: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` (Render's `$PORT`, not hardcoded `8081`)
+- Required env: `DATABASE_URL` (same Postgres; `postgresql+asyncpg` is rewritten automatically), `ENVIRONMENT=production`, `INTERNAL_SERVICE_TOKEN`, RS256 `JWT_PRIVATE_KEY` + `JWT_PUBLIC_KEY` (not the HS256 `JWT_SECRET` fallback), `EMAIL_PROVIDER_API_KEY`, `EMAIL_PROVIDER_API_URL=https://api.resend.com/emails`, `EMAIL_FROM` (verified Resend domain or `Peapod <beth.t@example.com>` while testing), `PASSWORD_RESET_URL=peapod://reset-password`.
+- `*.pem` files are gitignored. Paste the PEM contents into Render env vars; do not upload key files.
+
+After a send, Render logs for the security service must show a line like `email provider status=200 body={"id":"..."}`. A 403 body naming an unverified domain is why inboxes stay empty even when the app got `201`.
+
 ## How to use the live Pod map
 
 The Home tab is always scoped to one pod. Tap the pod name in the upper-left
@@ -139,14 +193,27 @@ optional for Expo Go development.
 
 | Variable | Service | Purpose |
 |----------|---------|---------|
-| `DATABASE_URL` | api, security | Postgres (Python wants `postgresql+asyncpg://` — rewritten automatically) |
-| `SECURITY_URL` | api | Where Fastify proxies `/auth/*` and verifies tokens |
+| `DATABASE_URL` | api, security | Postgres. Python rewrites `postgres://` onto `postgresql+asyncpg://`. There is no `SECURITY_DATABASE_URL`. |
+| `PORT` | api, security (Render) | Listen port. Render injects this. The API does **not** read `API_PORT`. |
+| `SECURITY_URL` | api | HTTPS origin of `services/security` (no trailing slash). Required in production; loopback default is local-only. |
 | `COMPUTE_URL` / `COMPUTE_ENABLED` | api | Rust maths; `false` always uses the TypeScript fallback |
-| `INTERNAL_SERVICE_TOKEN` | api, security | Shared secret for `/internal/*` |
-| `JWT_SECRET` | security | HS256 dev signing; production requires RS256 key pair |
-| `EXPO_PUBLIC_API_URL` | mobile | Inlined into the app bundle. Never put a secret in `EXPO_PUBLIC_*` |
+| `INTERNAL_SERVICE_TOKEN` | api, security | Shared secret for `/internal/*` only |
+| `JWT_SECRET` | security | HS256 **dev** signing. Production refuses this and requires the RS256 pair. |
+| `JWT_PRIVATE_KEY` / `JWT_PUBLIC_KEY` | security | RS256 signing in staging/production |
+| `EMAIL_PROVIDER_API_KEY` | security | Resend (or compatible) API key. Required in production. |
+| `EMAIL_PROVIDER_API_URL` | security | Default `https://api.resend.com/emails` |
+| `EMAIL_FROM` | security | Must match a verified Resend domain (or Resend's onboarding sender while testing) |
+| `PASSWORD_RESET_URL` | security | Expo deep link; default `peapod://reset-password` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | security | Optional Google sign-in |
+| `GOOGLE_REDIRECT_URI` | security | API origin + `/auth/oauth/google/callback` (not `:8081`) |
+| `OAUTH_SUCCESS_REDIRECT_URL` | security | Default `peapod://auth/callback` |
+| `ENVIRONMENT` | security | `development` locally; `production` on Render |
+| `EXPO_PUBLIC_API_URL` | mobile | Inlined into the app bundle. LAN IP for Expo Go; `https://peapod-api.onrender.com` for preview EAS. Never put a secret in `EXPO_PUBLIC_*`. |
+| `EXPO_PUBLIC_WEBSOCKET_URL` | mobile | Optional. Derived from the API URL (`http`→`ws`) when unset. Preview EAS sets `wss://peapod-api.onrender.com`. |
 | `GOOGLE_MAPS_IOS_API_KEY` | mobile build | Google Maps SDK for iOS key |
 | `GOOGLE_MAPS_ANDROID_API_KEY` | mobile build | Google Maps SDK for Android key |
+
+Preview EAS builds **do not** upload `.env` (it is listed in `.easignore`). Put `EXPO_PUBLIC_*` values in [`apps/mobile/eas.json`](apps/mobile/eas.json) `build.preview.env` or EAS secrets.
 
 ### Google Maps key
 
@@ -358,5 +425,5 @@ cd services/security && pytest
 ## Docs
 
 - [SETUP-EXTERNAL-APIS.md](SETUP-EXTERNAL-APIS.md) — every missing third-party capability, how to provision it, and how to swap the stub.
-- [apps/mobile/README.md](apps/mobile/README.md) — Expo Go LAN notes.
-- [apps/mobile/eas.json](apps/mobile/eas.json) — build/submit profiles, with a `_documentation` key explaining each flag.
+- [apps/mobile/README.md](apps/mobile/README.md) — Expo Go LAN notes and the cloud API origin.
+- [apps/mobile/eas.json](apps/mobile/eas.json) — `development`, `preview`, and `production` build/submit profiles. Preview already points at `https://peapod-api.onrender.com`.

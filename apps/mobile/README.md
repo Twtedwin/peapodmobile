@@ -44,21 +44,44 @@ Find your LAN IP:
 The phone and the laptop must be on the same Wi-Fi. HTTP (not HTTPS) is
 fine on a LAN; Expo Go will warn about cleartext and that is expected.
 
-The app sends every request, including `/auth/*`, to the API on port 8080.
-Fastify proxies authentication to the security service on port 8081; never
-configure a direct mobile-to-security URL. Realtime derives `ws://` or
-`wss://` from the same API origin automatically.
+The app sends every request, including `/auth/*`, to the API. Fastify
+proxies authentication to the security service; never configure a
+direct mobile-to-security URL. Realtime uses `EXPO_PUBLIC_WEBSOCKET_URL`
+when set, otherwise it derives `ws://` or `wss://` from the API origin.
+
+## Cloud API
+
+Preview EAS builds (`apps/mobile/eas.json` `build.preview.env`) talk to
+the hosted Node API:
+
+| | |
+| --- | --- |
+| HTTP | `https://peapod-api.onrender.com` |
+| WebSocket | `wss://peapod-api.onrender.com` |
+
+`.env` is not uploaded to EAS (`.easignore`). Changing the cloud origin
+requires editing `eas.json` (or EAS secrets) and rebuilding. Local Expo
+Go still uses the LAN `EXPO_PUBLIC_API_URL` in the repository-root `.env`.
+
+The production EAS profile compiles `https://api.peapod.app`. That custom
+domain is not the current Render hostname.
 
 ## First login
 
 Either:
 
 1. Register a new account in the app, verify the emailed OTP (in
-   development the security service logs the code), then create or join
-   a pod, or
+   development the security service logs the code; in production look
+   for `email provider status=` in the security Render logs), then
+   create or join a pod, or
 2. Use a demo profile the API + security seeds created, e.g.
    `alex@peapod.local` / `peapod-demo-12` — only after both seed scripts
-   have run so the profile row and credential row exist.
+   have run so the profile row and credential row exist. Demo users are
+   not on the hosted Render database unless you seeded it there.
+
+Unverified login returns HTTP 403 and re-sends the OTP. Forgot-password
+always looks successful to the client; whether Resend accepted the mail
+is only in the security logs.
 
 The login screen helper text is: **Create an account, then create or join a pod.**
 

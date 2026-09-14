@@ -143,23 +143,44 @@ APNS_PRIVATE_KEY=
 **Provision (Resend, example).**
 
 1. resend.com → API key.
-2. Verify `peapod.app` (or your domain) as a sender.
-3. Set:
+2. Until a domain is verified, Resend only delivers from
+   `beth.t@example.com` and **only to the account owner's inbox**. An
+   `EMAIL_FROM` of `Peapod <no-reply@peapod.app>` against an unverified
+   domain is the usual "HTTP 200, empty inbox" failure: Resend accepts
+   the JSON then drops or quarantines the message.
+3. Verify `peapod.app` (or your domain) as a sender, then switch
+   `EMAIL_FROM` to that domain.
+4. Set:
 
 ```
 EMAIL_PROVIDER_API_KEY=re_...
 EMAIL_PROVIDER_API_URL=https://api.resend.com/emails
-EMAIL_FROM=Peapod <no-reply@peapod.app>
-PASSWORD_RESET_URL=https://app.peapod.app/reset-password
+EMAIL_FROM=Peapod <beth.t@example.com>
+PASSWORD_RESET_URL=peapod://reset-password
 ```
 
-Any provider whose send endpoint accepts JSON + `Authorization: Bearer` works without a code change (`EMAIL_PROVIDER_API_URL`).
+After a register/resend/forgot-password call, the security process prints:
 
-**Code change.** None if the env is set. `app/email.py` already POSTs to the configured URL.
+```
+email provider status=200 body={"id":"..."}
+```
 
-**Cost.** Resend's free tier is enough for OTP volume. Do not use a personal Gmail SMTP — deliverability and TOS.
+or a 4xx JSON body (`domain is not verified`, invalid `from`, etc.). That
+line is the source of truth; the API/app `200`/`201` only means *this*
+service accepted the request. OTP and reset tokens are never logged.
 
-**Verify.** Register a real inbox, receive a 6-digit code, no `DEV EMAIL FALLBACK` in logs.
+Any provider whose send endpoint accepts JSON + `Authorization: Bearer`
+works without a code change (`EMAIL_PROVIDER_API_URL`).
+
+**Code change.** None if the env is set. `app/email.py` already POSTs to
+the configured URL and logs `response.status_code` + `response.text`.
+
+**Cost.** Resend's free tier is enough for OTP volume. Do not use a
+personal Gmail SMTP — deliverability and TOS.
+
+**Verify.** Register the Resend account owner's inbox (test mode) or any
+inbox once the domain is verified. Confirm the `email provider status=`
+line, then the 6-digit code. No `DEV EMAIL FALLBACK` in production logs.
 
 ---
 

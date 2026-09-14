@@ -10,16 +10,15 @@ INPUTS  : process environment via `app.config.get_settings()`
 OUTPUTS : the ASGI `app` object `uvicorn` serves
 
 CALLED BY
-    `uvicorn app.main:app --host 0.0.0.0 --port 8081` (Dockerfile CMD, and
-    the local `uvicorn --reload` workflow).
+    Locally: `uvicorn app.main:app --host 0.0.0.0 --port 8081`.
+    On Render: `uvicorn app.main:app --host 0.0.0.0 --port $PORT` — the
+    platform injects `PORT`; do not hard-code 8081 in the start command.
 
 PORT
-    8081. `services/api` is 8080 and `services/compute` is 8082, so a
-    developer looking at `localhost:8081` knows they are on the credential
-    process. The Dockerfile CMD hard-codes the port; `PORT` in compose is
-    documentation for operators, not read here, because a mismatch between
-    EXPOSE and the actually-bound port is how health checks go green
-    against the wrong process.
+    8081 locally so a developer looking at `localhost:8081` knows they are
+    on the credential process (`services/api` is 8080, compute is 8082).
+    This module does not read `PORT`; uvicorn's `--port` flag (or `$PORT`
+    on Render) is what actually binds.
 """
 
 from __future__ import annotations

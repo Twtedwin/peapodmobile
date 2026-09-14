@@ -178,7 +178,10 @@ class Settings(BaseSettings):
     # Must match EXACTLY (byte for byte, including trailing slash) one of the
     # redirect URIs registered in the Google Cloud console, or Google returns
     # `redirect_uri_mismatch` before the user ever sees a consent screen.
-    GOOGLE_REDIRECT_URI: str = "http://localhost:8081/auth/oauth/google/callback"
+    # The Node API reverse-proxies `/auth/*`, so Google must redirect to the
+    # API origin (8080 locally, the Render API hostname in production) — not
+    # this process's listen port.
+    GOOGLE_REDIRECT_URI: str = "http://localhost:8080/auth/oauth/google/callback"
 
     # -- Transactional email ------------------------------------------------
     EMAIL_PROVIDER_API_KEY: SecretStr | None = None
@@ -216,11 +219,14 @@ class Settings(BaseSettings):
 
     # Where the password-reset email points the user. The service does not
     # render UI, so it needs to be told the client's URL. `?token=` is appended.
-    PASSWORD_RESET_URL: str = "http://localhost:5173/reset-password"
+    # Expo deep link into `apps/mobile/app/reset-password.tsx` (`?token=` is
+    # appended). The old Vite web origin is gone; a localhost:5173 default
+    # would mail a dead link even in development.
+    PASSWORD_RESET_URL: str = "peapod://reset-password"
 
     # Where the OAuth callback bounces the browser once tokens are minted. The
     # client reads the tokens from the URL fragment.
-    OAUTH_SUCCESS_REDIRECT_URL: str = "http://localhost:5173/auth/callback"
+    OAUTH_SUCCESS_REDIRECT_URL: str = "peapod://auth/callback"
 
     # ------------------------------------------------------------------
     # Normalisation

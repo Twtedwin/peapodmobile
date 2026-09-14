@@ -29,7 +29,9 @@ if this fallback would be active in staging/production, because printing
 codes to container logs is how they end up in a log aggregator, a support
 ticket, and then somebody else's inbox.
 
-The production send path logs only destination + status, NEVER the code.
+The production send path logs destination, HTTP status, and the provider
+response body (Resend's `{id}` or a 4xx JSON error). NEVER the OTP or
+reset token, and never the API key.
 """
 
 from __future__ import annotations
@@ -179,6 +181,22 @@ async def _deliver(
                 json=payload,
                 headers=headers,
             )
+        # Always print the raw provider reply. Resend can return HTTP 200 with
+        # an id while still dropping the message (unverified domain, test-mode
+        # recipient). Logging only the status hid 4xx JSON such as
+        # "domain is not verified". Never log the API key or the OTP body.
+        print(
+            f"email provider status={response.status_code} body={response.text}",
+            flush=True,
+        )
+        logger.info(
+            "email provider HTTP %s body=%s from=%s destination=%s url=%s",
+            response.status_code,
+            response.text,
+            cfg.EMAIL_FROM,
+            to,
+            cfg.EMAIL_PROVIDER_API_URL,
+        )
     except Exception:
         # A mail failure must not 500 register / forgot-password. The OTP row
         # is already written; the user can tap Resend.
@@ -187,9 +205,10 @@ async def _deliver(
 
     if response.status_code >= 300:
         logger.error(
-            "email provider returned HTTP %s for destination=%s",
+            "email provider returned HTTP %s for destination=%s body=%s",
             response.status_code,
             to,
+            response.text,
         )
         return False
     return True

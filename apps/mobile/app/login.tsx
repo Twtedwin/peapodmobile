@@ -5,7 +5,7 @@
  *   Email + password login. Stores the access and refresh tokens in
  *   SecureStore via the session store, then lets `/` decide the next screen.
  *
- * INPUTS  : POST /auth/login on the security service
+ * INPUTS  : POST /auth/login on the API (proxied to the security service)
  * OUTPUTS : tokens + user in session
  *
  * HELPER TEXT
@@ -17,7 +17,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 
-import { authPost, normaliseAuth } from '@/services/apiClient';
+import { authPost, normaliseAuth, ApiError } from '@/services/apiClient';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Screen } from '@/components/Screen';
@@ -47,7 +47,13 @@ export default function LoginScreen() {
       await applyTokens(pair.access_token, pair.refresh_token, pair.user.id ? pair.user : undefined);
       router.replace('/');
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Invalid email or password');
+      setError(
+        cause instanceof ApiError && cause.status === 403
+          ? 'Verify your email first. We sent a new 6-digit code — open Create account and enter it, or tap Resend.'
+          : cause instanceof Error
+            ? cause.message
+            : 'Invalid email or password',
+      );
     } finally {
       setLoading(false);
     }

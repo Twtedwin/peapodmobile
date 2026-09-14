@@ -81,6 +81,10 @@ async function proxy(request: FastifyRequest, reply: import('fastify').FastifyRe
     });
   } catch (err) {
     const cause = err instanceof Error && 'cause' in err && err.cause instanceof Error ? err.cause.message : '';
+    request.log.warn(
+      { err, target, securityUrl: env.SECURITY_URL },
+      'auth proxy could not reach the security service',
+    );
     throw unavailable(
       `Security service unreachable at ${env.SECURITY_URL}: ${err instanceof Error ? err.message : String(err)}${cause ? ` (${cause})` : ''}`,
     );

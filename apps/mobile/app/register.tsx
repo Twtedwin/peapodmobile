@@ -48,13 +48,17 @@ export default function RegisterScreen() {
     }
     setLoading(true);
     try {
-      await authPost('/auth/register', {
+      const created = await authPost<{ email_sent?: boolean }>('/auth/register', {
         email: email.trim().toLowerCase(),
         password,
         display_name: displayName.trim() || email.split('@')[0],
       });
       setShowOtp(true);
-      setInfo('We sent a 6-digit code. In development it is also printed in the security service logs.');
+      setInfo(
+        created?.email_sent === false
+          ? 'Account created, but the verification email was not accepted by the mail provider. Tap Resend, and check the security service logs for `email provider status=`.'
+          : 'We sent a 6-digit code to your inbox. Locally it is also printed in the security service logs.',
+      );
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Registration failed');
     } finally {
