@@ -186,7 +186,8 @@ async def _deliver(
         # recipient). Logging only the status hid 4xx JSON such as
         # "domain is not verified". Never log the API key or the OTP body.
         print(
-            f"email provider status={response.status_code} body={response.text}",
+            f"[resend] httpx.post url={cfg.EMAIL_PROVIDER_API_URL} "
+            f"status_code={response.status_code} text={response.text}",
             flush=True,
         )
         logger.info(
@@ -197,9 +198,14 @@ async def _deliver(
             to,
             cfg.EMAIL_PROVIDER_API_URL,
         )
-    except Exception:
+    except Exception as exc:
         # A mail failure must not 500 register / forgot-password. The OTP row
         # is already written; the user can tap Resend.
+        print(
+            f"[resend] httpx.post FAILED url={cfg.EMAIL_PROVIDER_API_URL} "
+            f"exception={type(exc).__name__}: {exc!r}",
+            flush=True,
+        )
         logger.exception("email delivery failed for destination=%s", to)
         return False
 

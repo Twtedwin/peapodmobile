@@ -64,6 +64,7 @@ async function proxy(request: FastifyRequest, reply: import('fastify').FastifyRe
   const target = `${env.SECURITY_URL}${request.url}`;
   const method = request.method.toUpperCase();
   const hasBody = method !== 'GET' && method !== 'HEAD';
+  console.log(`[auth proxy] fetching ${method} ${target}`);
 
   const headers = forwardHeaders(request);
   if (hasBody && !headers['content-type']) {
@@ -81,6 +82,9 @@ async function proxy(request: FastifyRequest, reply: import('fastify').FastifyRe
     });
   } catch (err) {
     const cause = err instanceof Error && 'cause' in err && err.cause instanceof Error ? err.cause.message : '';
+    console.log(
+      `[auth proxy] fetch FAILED ${method} ${target}: ${err instanceof Error ? err.message : String(err)}${cause ? ` (${cause})` : ''}`,
+    );
     request.log.warn(
       { err, target, securityUrl: env.SECURITY_URL },
       'auth proxy could not reach the security service',
@@ -102,5 +106,10 @@ async function proxy(request: FastifyRequest, reply: import('fastify').FastifyRe
   if (location) reply.header('location', location);
 
   const buf = Buffer.from(await upstream.arrayBuffer());
+  if (upstream.status >= 400) {
+    console.log(
+      `[auth proxy] upstream ${upstream.status} ${method} ${target} body=${buf.toString('utf8')}`,
+    );
+  }
   return reply.send(buf);
 }

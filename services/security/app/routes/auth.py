@@ -317,11 +317,24 @@ async def register(
     """
     limiter.check(RateLimitAction.REGISTER, identifier=body.email)
 
+    cred_table = AuthCredential.__tablename__
+    users_table = UserProfile.__tablename__
+    print(
+        f"[auth.register] existence check table={cred_table!r} "
+        f"(also unique on {users_table!r}.email) email={body.email!r}",
+        flush=True,
+    )
     existing = await _load_credential_by_email(session, body.email)
     if existing is not None:
         # 409 is an enumeration signal, accepted deliberately: the user is
         # trying to sign up and needs to know to log in instead. Login and
         # forgot-password stay silent.
+        print(
+            f"[auth.register] 409 account exists table={cred_table!r} "
+            f"email={body.email!r} user_id={existing.user_id} "
+            f"email_verified={existing.email_verified}",
+            flush=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists",
@@ -359,6 +372,23 @@ async def register(
         await session.flush()
     except IntegrityError as exc:
         await session.rollback()
+        orig = getattr(exc, "orig", None)
+        diag = getattr(orig, "diag", None)
+        table = getattr(diag, "table_name", None) if diag is not None else None
+        constraint = getattr(diag, "constraint_name", None) if diag is not None else None
+        blob = f"{orig} {exc}".lower()
+        if not table:
+            if "auth_credentials" in blob:
+                table = cred_table
+            elif "users" in blob:
+                table = users_table
+            else:
+                table = f"unknown ({orig!r})"
+        print(
+            f"[auth.register] 409 IntegrityError table={table!r} "
+            f"constraint={constraint!r} email={body.email!r} orig={orig!r}",
+            flush=True,
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="An account with this email already exists",
