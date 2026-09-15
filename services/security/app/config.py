@@ -198,6 +198,11 @@ class Settings(BaseSettings):
     # matches the pod-invite expiry already used elsewhere in Peapod.
     OTP_TTL_SECONDS: int = Field(default=600, ge=60, le=3600)
 
+    # DEV/DEBUG SWITCH. When True, `otp_codes.code_hash` stores the six digits
+    # in plaintext instead of Argon2. Revert by setting OTP_STORE_PLAINTEXT=false
+    # -- generate() and verify_code_hash() are the only call sites.
+    OTP_STORE_PLAINTEXT: bool = True
+
     # 3600 s = 1 hour for password-reset links. Longer than an OTP because the
     # link is often opened on a different device (phone -> desktop) and users
     # routinely walk away mid-flow; still short enough that an old email

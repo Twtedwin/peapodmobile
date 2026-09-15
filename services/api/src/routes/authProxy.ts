@@ -77,7 +77,7 @@ async function proxy(request: FastifyRequest, reply: import('fastify').FastifyRe
       method,
       headers,
       body: hasBody ? JSON.stringify(request.body ?? {}) : undefined,
-      signal: AbortSignal.timeout(15_000),
+      signal: AbortSignal.timeout(20_000),
       redirect: 'manual',
     });
   } catch (err) {

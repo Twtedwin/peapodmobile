@@ -228,9 +228,8 @@ async def issue_and_send_otp(
 
     CPU
     ---
-    Argon2 hashing of the six digits is offloaded with
-    `anyio.to_thread.run_sync` so the event loop is not blocked for the
-    ~25-40 ms the OTP hasher takes.
+    When OTP_STORE_PLAINTEXT is on, generate() is cheap and stays on the
+    event loop via the same worker-thread call for a stable call site.
     """
     settings = get_settings()
     now = utcnow()

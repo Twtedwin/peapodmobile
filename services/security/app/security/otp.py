@@ -145,12 +145,10 @@ class GeneratedOtp:
     Attributes
     ----------
     code:
-        The plaintext six digits. Exists in memory only long enough to be
-        emailed; NEVER persisted, NEVER logged (except by the clearly-labelled
-        development fallback in `app/email.py`), NEVER returned in an API
-        response.
+        The plaintext six digits. Emailed once. When OTP_STORE_PLAINTEXT is
+        on, the same digits are also written to `otp_codes.code_hash`.
     code_hash:
-        What goes in `otp_codes.code_hash`.
+        What goes in `otp_codes.code_hash` (plaintext or Argon2).
     expires_at:
         Absolute deadline, timezone-aware UTC.
     """
@@ -188,8 +186,20 @@ def generate_code() -> str:
     return f"{secrets.randbelow(_OTP_UPPER_BOUND):0{OTP_DIGITS}d}"
 
 
+def _store_otp_plaintext() -> bool:
+    """Isolated switch for plaintext OTP rows.
+
+    Revert: set OTP_STORE_PLAINTEXT=false (or delete the flag; hashing
+    functions below are unchanged). Read at call time so tests can flip
+    Settings without reimporting this module.
+    """
+    from app.config import get_settings
+
+    return bool(get_settings().OTP_STORE_PLAINTEXT)
+
+
 def hash_code(code: str) -> str:
-    """Hash a plaintext OTP for storage.
+    """Value written to `otp_codes.code_hash`.
 
     Parameters
     ----------
@@ -198,23 +208,22 @@ def hash_code(code: str) -> str:
 
     Returns
     -------
-    An Argon2 encoded hash (salt and parameters included in the string).
-
-    Timing
-    ------
-    ~25-40 ms of CPU. Call from a worker thread (`anyio.to_thread.run_sync`)
-    so the event loop is not blocked.
+    The plaintext code when `OTP_STORE_PLAINTEXT` is on (dev/debug).
+    Otherwise an Argon2 encoded hash.
     """
+    if _store_otp_plaintext():
+        return code
     return _OTP_HASHER.hash(code)
 
 
 def verify_code_hash(code_hash: str, submitted: str) -> bool:
-    """Constant-time-ish comparison of a submitted code against a stored hash.
+    """Compare a submitted code against the stored `otp_codes.code_hash` value.
 
     Parameters
     ----------
     code_hash:
-        Value from `otp_codes.code_hash`.
+        Value from `otp_codes.code_hash` (plaintext six digits, or a leftover
+        Argon2 hash from before the plaintext switch).
     submitted:
         Six digits from the client (already shape-validated by the Pydantic
         schema, so this function does not need to police the format).
@@ -223,17 +232,15 @@ def verify_code_hash(code_hash: str, submitted: str) -> bool:
     -------
     True on match, False on mismatch or on a corrupt stored hash.
 
-    On constant time
-    ----------------
-    The comparison happens inside argon2's C `verify`, which compares the
-    derived tags with a constant-time memcmp. We never compare the digits
-    themselves in Python, so there is no early-exit timing leak. (Argon2's
-    total runtime does vary slightly with system load, but not with how many
-    leading digits were correct, which is the only thing an attacker could
-    exploit.)
+    Plaintext path uses `secrets.compare_digest` so length-equal codes do not
+    leak via early-exit. Leftover Argon2 rows still verify so in-flight codes
+    issued before the switch keep working until they expire.
     """
+    stored = (code_hash or "").strip()
+    if len(stored) == OTP_DIGITS and stored.isdigit():
+        return secrets.compare_digest(stored, submitted)
     try:
-        _OTP_HASHER.verify(code_hash, submitted)
+        _OTP_HASHER.verify(stored, submitted)
     except VerifyMismatchError:
         return False
     except InvalidHashError:
@@ -246,7 +253,7 @@ def verify_code_hash(code_hash: str, submitted: str) -> bool:
 
 
 def generate(ttl_seconds: int, now: datetime | None = None) -> GeneratedOtp:
-    """Create a code, its hash, and its expiry in one step.
+    """Create a code, its stored form, and its expiry in one step.
 
     Parameters
     ----------
@@ -259,7 +266,7 @@ def generate(ttl_seconds: int, now: datetime | None = None) -> GeneratedOtp:
 
     Returns
     -------
-    `GeneratedOtp`.
+    `GeneratedOtp`. `code_hash` is plaintext when OTP_STORE_PLAINTEXT is on.
     """
     issued = now or datetime.now(UTC)
     code = generate_code()
@@ -313,10 +320,7 @@ def check_candidate(
     Order of checks
     ---------------
     Existence, then expiry, then single-use, then the attempt cap, and only
-    then the expensive Argon2 comparison. Cheap disqualifications first means
-    a flood of requests against expired codes costs almost no CPU -- the
-    hashing is the expensive part and there is no reason to pay it for a code
-    that is already dead.
+    then the code comparison. Cheap disqualifications first.
 
     Edge cases
     ----------

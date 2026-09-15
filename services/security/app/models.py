@@ -278,10 +278,9 @@ class OtpCode(Base):
 
     user_id: Mapped[uuid.UUID] = mapped_column(Uuid(as_uuid=True), nullable=False, index=True)
 
-    # Argon2id hash of the six digits -- NOT SHA-256. A 6-digit code has only
-    # 10^6 possibilities, so a fast hash is reversible from a database dump in
-    # microseconds; a memory-hard hash makes that sweep expensive. See
-    # `app/security/otp.py` for the parameter choice.
+    # Currently stores the six digits in plaintext when OTP_STORE_PLAINTEXT is
+    # on (dev/debug). The column is TEXT, so Argon2 hashes and 6-digit codes
+    # both fit -- no migration. Revert hashing in app/security/otp.py.
     code_hash: Mapped[str] = mapped_column(Text, nullable=False)
 
     purpose: Mapped[OtpPurpose] = mapped_column(OtpPurposeType, nullable=False)

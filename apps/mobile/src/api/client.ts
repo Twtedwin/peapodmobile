@@ -290,7 +290,7 @@ export const apiDelete = <T>(path: string) => request<T>(path, { method: 'DELETE
 
 /** POST against the auth base (security service, or API proxy). */
 export const authPost = <T>(path: string, body?: unknown, anonymous = true) =>
-  request<T>(path, { method: 'POST', body, auth: true, anonymous });
+  request<T>(path, { method: 'POST', body, auth: true, anonymous, timeoutMs: 20_000 });
 
 /** GET against the auth base. Sends the access token. */
 export const authGet = <T>(path: string) =>

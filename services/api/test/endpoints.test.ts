@@ -132,7 +132,7 @@ function pythonBin(): string | null {
 
 function hashOtp(code: string): string {
   const bin = pythonBin();
-  if (!bin) throw new Error('services/security/.venv Python is missing; cannot plant an OTP hash');
+  if (!bin) throw new Error('services/security/.venv Python is missing; cannot plant an OTP');
   return execFileSync(
     bin,
     ['-c', `from app.security.otp import hash_code; print(hash_code(${JSON.stringify(code)}), end='')`],
