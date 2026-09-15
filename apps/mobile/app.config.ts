@@ -31,18 +31,22 @@
  */
 
 import type { ExpoConfig } from 'expo/config';
+import { loadProjectEnv } from '@expo/env';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-/**
- * Asset paths must be relative to the Expo project root, which in this
- * monorepo is the repository root (EAS and `npx expo prebuild` both run
- * there). `./assets/splash.png` would look at `<repo>/assets/splash.png`
- * and miss the real files. Resolve from this file against the repo root so
- * the path is always `./apps/mobile/assets/<file>`, independent of cwd.
- */
 const mobileDirectory = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(mobileDirectory, '../..');
+loadProjectEnv(repoRoot, { silent: true });
+
+function firstEnv(...names: string[]): string | undefined {
+  for (const name of names) {
+    const value = process.env[name]?.trim();
+    if (value) return value;
+  }
+  return undefined;
+}
+
 const asset = (fileName: string): string =>
   `./${relative(repoRoot, resolve(mobileDirectory, 'assets', fileName)).replaceAll('\\', '/')}`;
 
@@ -71,8 +75,12 @@ const splashImage = asset('splash.png');
 // src/components/map/ is written against the provider-agnostic API, so nothing
 // in the app changes shape when a key is later added.
 // ---------------------------------------------------------------------------
-const googleMapsIosApiKey = process.env.GOOGLE_MAPS_IOS_API_KEY;
-const googleMapsAndroidApiKey = process.env.GOOGLE_MAPS_ANDROID_API_KEY;
+const googleMapsIosApiKey = firstEnv('GOOGLE_MAPS_IOS_API_KEY', 'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_IOS');
+const googleMapsAndroidApiKey = firstEnv(
+  'GOOGLE_MAPS_ANDROID_API_KEY',
+  'EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID',
+  'MAPS_API_KEY',
+);
 
 const config: ExpoConfig = {
   name: 'Peapod',
@@ -146,9 +154,11 @@ const config: ExpoConfig = {
       // can be posted.
       'POST_NOTIFICATIONS',
     ],
-    ...(googleMapsAndroidApiKey
-      ? { config: { googleMaps: { apiKey: googleMapsAndroidApiKey } } }
-      : {}),
+    config: {
+      googleMaps: {
+        apiKey: googleMapsAndroidApiKey ?? '',
+      },
+    },
   },
 
   plugins: [
@@ -193,8 +203,8 @@ const config: ExpoConfig = {
       },
     ],
     // Last so it wins over any hardcoded com.google.android.geo.API_KEY.
-    // Reads android/local.properties MAPS_API_KEY at Gradle time.
-    './apps/mobile/plugins/withMapsApiKeyFromLocalProperties.cjs',
+    // Absolute path so prebuild works from the repo root or from apps/mobile.
+    resolve(mobileDirectory, 'plugins/withMapsApiKeyFromLocalProperties.cjs'),
   ],
 
   experiments: {

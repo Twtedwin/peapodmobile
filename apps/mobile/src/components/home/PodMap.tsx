@@ -1,13 +1,14 @@
 /**
  * Native live map for the active pod.
  *
- * The visual treatment approximates CARTO Dark Matter while keeping the
- * existing react-native-maps provider, which works in Expo Go.
+ * Android always uses Google Maps (`PROVIDER_GOOGLE`) and needs a Maps SDK
+ * key in the native manifest. iOS omits the provider so Apple Maps is used
+ * unless a Google iOS key is later added.
  */
 
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, type MapStyleElement } from 'react-native-maps';
 
 import { Avatar } from '@/components/Avatar';
@@ -98,7 +99,7 @@ export const PodMap = forwardRef<PodMapHandle, Props>(function PodMap(
       <MapView
         ref={mapRef}
         style={StyleSheet.absoluteFill}
-        provider={PROVIDER_GOOGLE}
+        provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
         initialRegion={
           firstCoordinate
             ? { ...firstCoordinate, latitudeDelta: 0.04, longitudeDelta: 0.04 }

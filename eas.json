@@ -21,6 +21,7 @@
     "preview": {
       "distribution": "internal",
       "channel": "preview",
+      "environment": "preview",
       "env": {
         "EXPO_PUBLIC_API_URL": "https://peapod-api.onrender.com",
         "EXPO_PUBLIC_WEBSOCKET_URL": "wss://peapod-api.onrender.com"

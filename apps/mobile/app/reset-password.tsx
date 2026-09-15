@@ -4,7 +4,7 @@
  * PURPOSE
  *   Completes a password reset from the emailed link (`?token=`).
  *
- * INPUTS  : token query param, POST /auth/reset-password
+ * INPUTS  : token query param (string or string[] from Expo Router), POST /auth/reset-password
  * OUTPUTS : redirect to login
  */
 
@@ -19,11 +19,16 @@ import { Screen } from '@/components/Screen';
 import { useSession } from '@/store/session';
 import { spacing, themeColors, type as typeScale } from '@/theme';
 
+function firstParam(value: string | string[] | undefined): string {
+  if (Array.isArray(value)) return (value[0] ?? '').trim();
+  return typeof value === 'string' ? value.trim() : '';
+}
+
 export default function ResetPasswordScreen() {
   const dark = useSession((s) => s.darkMode);
   const colors = themeColors(dark);
-  const params = useLocalSearchParams<{ token?: string }>();
-  const resetToken = typeof params.token === 'string' ? params.token : '';
+  const params = useLocalSearchParams<{ token?: string | string[] }>();
+  const resetToken = firstParam(params.token);
 
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
@@ -31,9 +36,18 @@ export default function ResetPasswordScreen() {
   const [loading, setLoading] = useState(false);
 
   async function submit() {
+    if (loading) return;
     setError('');
+    if (password.length < 10) {
+      setError('Password must be at least 10 characters');
+      return;
+    }
     if (password !== confirm) {
       setError('Passwords do not match');
+      return;
+    }
+    if (!resetToken) {
+      setError('This reset link is missing its token. Request a new one.');
       return;
     }
     setLoading(true);
@@ -56,7 +70,7 @@ export default function ResetPasswordScreen() {
         <Text style={{ fontSize: 48, marginTop: spacing.xxl }}>⚠️</Text>
         <Text style={[typeScale.hero, { color: colors.text, marginTop: spacing.md }]}>Invalid reset link</Text>
         <Text style={[typeScale.body, { color: colors.textMuted, marginTop: spacing.sm }]}>
-          This password reset link is missing or invalid. Request a new one.
+          This password reset link is missing or invalid. Request a new one and open it on this device.
         </Text>
         <Link href="/forgot-password" asChild>
           <Pressable style={{ marginTop: spacing.xl }}>
@@ -73,9 +87,9 @@ export default function ResetPasswordScreen() {
       <Text style={[typeScale.hero, { color: colors.text, marginTop: spacing.md }]}>New password</Text>
       {error ? <Text style={{ color: colors.danger, marginTop: spacing.lg }}>{error}</Text> : null}
       <View style={{ marginTop: spacing.xl, gap: spacing.md }}>
-        <Field label="New password" value={password} onChangeText={setPassword} secure autoFocus />
+        <Field label="New password (at least 10 characters)" value={password} onChangeText={setPassword} secure autoFocus />
         <Field label="Confirm password" value={confirm} onChangeText={setConfirm} secure />
-        <Button label="Save password" onPress={submit} loading={loading} disabled={!password} />
+        <Button label="Save password" onPress={submit} loading={loading} disabled={!password || !confirm} />
       </View>
     </Screen>
   );

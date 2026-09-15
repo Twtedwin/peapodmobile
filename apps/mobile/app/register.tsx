@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import { Link, router } from 'expo-router';
 
-import { authPost, normaliseAuth } from '@/services/apiClient';
+import { ApiError, authPost, normaliseAuth } from '@/services/apiClient';
 import { Button } from '@/components/Button';
 import { Field } from '@/components/Field';
 import { Screen } from '@/components/Screen';
@@ -37,7 +37,13 @@ export default function RegisterScreen() {
   const [info, setInfo] = useState('');
 
   async function register() {
+    if (loading) return;
     setError('');
+    const normalisedEmail = email.trim().toLowerCase();
+    if (!normalisedEmail.includes('@')) {
+      setError('Enter a valid email address');
+      return;
+    }
     if (password.length < 10) {
       setError('Password must be at least 10 characters');
       return;
@@ -49,9 +55,9 @@ export default function RegisterScreen() {
     setLoading(true);
     try {
       const created = await authPost<{ email_sent?: boolean }>('/auth/register', {
-        email: email.trim().toLowerCase(),
+        email: normalisedEmail,
         password,
-        display_name: displayName.trim() || email.split('@')[0],
+        display_name: displayName.trim() || normalisedEmail.split('@')[0],
       });
       setShowOtp(true);
       setInfo(
@@ -60,13 +66,18 @@ export default function RegisterScreen() {
           : 'We sent a 6-digit code to your inbox. Locally it is also printed in the security service logs.',
       );
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : 'Registration failed');
+      if (cause instanceof ApiError && cause.status === 409) {
+        setError('An account with this email already exists. Log in instead.');
+      } else {
+        setError(cause instanceof Error ? cause.message : 'Registration failed');
+      }
     } finally {
       setLoading(false);
     }
   }
 
   async function verify() {
+    if (loading) return;
     setError('');
     setLoading(true);
     try {
@@ -76,9 +87,8 @@ export default function RegisterScreen() {
         purpose: 'register',
       });
       const pair = normaliseAuth(raw);
-      if (pair.access_token) {
-        await applyTokens(pair.access_token, pair.refresh_token, pair.user.id ? pair.user : undefined);
-      }
+      if (!pair.access_token) throw new Error('Verification succeeded but no access token came back.');
+      await applyTokens(pair.access_token, pair.refresh_token, pair.user.id ? pair.user : undefined);
       router.replace('/permissions');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Invalid verification code');
@@ -88,12 +98,16 @@ export default function RegisterScreen() {
   }
 
   async function resend() {
+    if (loading) return;
     setError('');
+    setLoading(true);
     try {
       await authPost('/auth/resend-otp', { email: email.trim().toLowerCase(), purpose: 'register' });
       setInfo('A new code is on its way.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not resend the code');
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -134,6 +148,7 @@ export default function RegisterScreen() {
             onChangeText={setEmail}
             placeholder="you@example.com"
             keyboardType="email-address"
+            autoCapitalize="none"
           />
           <Field label="Password (at least 10 characters)" value={password} onChangeText={setPassword} placeholder="••••••••" secure />
           <Field label="Confirm password" value={confirm} onChangeText={setConfirm} placeholder="••••••••" secure />

@@ -79,9 +79,10 @@ Either:
    have run so the profile row and credential row exist. Demo users are
    not on the hosted Render database unless you seeded it there.
 
-Unverified login returns HTTP 403 and re-sends the OTP. Forgot-password
-always looks successful to the client; whether Resend accepted the mail
-is only in the security logs.
+Unverified login returns HTTP 403 and re-sends the OTP. The login screen
+then asks for that 6-digit code. Forgot-password shows a network/5xx error
+if the API is down; a 2xx still always looks successful so emails cannot
+be mined. Whether Resend accepted the mail is only in the security logs.
 
 The login screen helper text is: **Create an account, then create or join a pod.**
 

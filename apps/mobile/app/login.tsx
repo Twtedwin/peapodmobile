@@ -87,12 +87,16 @@ export default function LoginScreen() {
   }
 
   async function resend() {
+    if (loading) return;
     setError('');
+    setLoading(true);
     try {
       await authPost('/auth/resend-otp', { email: email.trim().toLowerCase(), purpose: 'register' });
       setInfo('A new code is on its way.');
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not resend the code');
+    } finally {
+      setLoading(false);
     }
   }
 

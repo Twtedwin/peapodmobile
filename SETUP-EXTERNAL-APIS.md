@@ -50,7 +50,7 @@ GOOGLE_MAPS_ANDROID_API_KEY=
 GOOGLE_MAPS_SERVER_API_KEY=
 ```
 
-`GOOGLE_MAPS_ANDROID_API_KEY` is the EAS/cloud fallback when `local.properties` is absent. Do not use `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID` — the native SDK does not read that name.
+`GOOGLE_MAPS_ANDROID_API_KEY` is the EAS/cloud fallback when `local.properties` is absent. A blank `MAPS_API_KEY=` in `local.properties` is treated as unset so it cannot hide a real env key. `EXPO_PUBLIC_GOOGLE_MAPS_API_KEY_ANDROID` is accepted only as a prebuild/Gradle alias — the native SDK does not read that name at runtime.
 
 **Code change.** Native builds use `apps/mobile/plugins/withMapsApiKeyFromLocalProperties.cjs` to set `com.google.android.geo.API_KEY` from `${MAPS_API_KEY}`. To add Places Autocomplete, introduce a search field on the place sheet that calls Places and writes `latitude`/`longitude` — there is no client for it yet.
 

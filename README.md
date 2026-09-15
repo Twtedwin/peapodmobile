@@ -237,8 +237,10 @@ MAPS_API_KEY=your_android_key
 
    See [`android-local.properties.example`](android-local.properties.example).
    Gradle reads `MAPS_API_KEY` and writes it into the manifest as
-   `${MAPS_API_KEY}`. For EAS cloud builds (no local.properties), set
-   `GOOGLE_MAPS_ANDROID_API_KEY` as an EAS secret or in `eas.json` `env`.
+   `${MAPS_API_KEY}`. A blank `MAPS_API_KEY=` is ignored (Groovy `?:` would
+   otherwise keep the empty string and hide env). For EAS cloud builds (no
+   local.properties), set `GOOGLE_MAPS_ANDROID_API_KEY` as an EAS secret for
+   the `preview` environment — not only a Render/backend Maps key.
 
 ```dotenv
 GOOGLE_MAPS_ANDROID_API_KEY=your_android_key
