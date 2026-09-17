@@ -60,9 +60,9 @@ export function CurrentUserPill({ pea, myFix, bottom, onCenterMe }: Props) {
 const styles = StyleSheet.create({
   wrap: {
     position: 'absolute',
-    zIndex: 16,
+    zIndex: 18,
     left: spacing.md,
-    maxWidth: '72%',
+    maxWidth: '58%',
     minHeight: 56,
     padding: spacing.sm,
     borderRadius: radius.lg,

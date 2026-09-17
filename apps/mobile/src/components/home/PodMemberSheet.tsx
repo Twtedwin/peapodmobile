@@ -1,9 +1,8 @@
 /**
  * Two-snap member sheet with a horizontal card carousel.
  *
- * Compact cards show name, avatar, place, last ping, and battery. Expanded
- * cards add distance (haversine), network, and speed. Card width is 2.5
- * visible slots so the strip reads as scrollable.
+ * Cards always show a horizontal 4-column stats row (Battery, Net, Apart,
+ * Speed). Card width is 2.5 visible slots so the strip reads as scrollable.
  *
  * The drag handle owns the pan responder so horizontal card scrolling stays
  * natural. No custom native bottom-sheet module is required.
@@ -41,7 +40,7 @@ import { PodMemberCard } from './PodMemberCard';
 
 /** Compact snap height in density-independent pixels. Taller than the old
  * chip strip so location + battery fit without clipping. */
-export const COMPACT_SHEET_HEIGHT = 248;
+export const COMPACT_SHEET_HEIGHT = 232;
 
 interface Props {
   peas: MapPea[];

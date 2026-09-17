@@ -314,6 +314,8 @@ Primary modules:
   `formatDistance` (`Together`, `420 m`, `1.2 km`, `4040 km`). The app does
   not add a third-party geolib.
 
+HTTP copies for Postman (auth + pod management) live in [`API_DOCS.md`](API_DOCS.md).
+
 ## Product rules this codebase preserves
 
 - Five tabs: Home (live map), Plans, World, Wallet, You.

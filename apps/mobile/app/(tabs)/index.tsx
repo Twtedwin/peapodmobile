@@ -19,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { apiClient, subscribeRealtime } from '@/services/apiClient';
 import { ErrorRetry } from '@/components/ErrorRetry';
 import { CurrentUserPill } from '@/components/home/CurrentUserPill';
+import { DirectMessageModal } from '@/components/home/DirectMessageModal';
 import { PodChatSheet } from '@/components/home/PodChatSheet';
 import {
   COMPACT_SHEET_HEIGHT,
@@ -61,6 +62,7 @@ function HomeInner() {
   const [podAnchor, setPodAnchor] = useState<PodHeaderAnchor | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [dmPea, setDmPea] = useState<MapPea | null>(null);
   const [mapBottom, setMapBottom] = useState(COMPACT_SHEET_HEIGHT);
 
   const pods = useMemo(() => podsQ.data ?? [], [podsQ.data]);
@@ -105,14 +107,7 @@ function HomeInner() {
 
   function openDirectMessage(pea: MapPea) {
     if (pea.isMe) return;
-    router.push({
-      pathname: '/direct-message/[userId]',
-      params: {
-        userId: pea.member.id,
-        name: pea.member.display_name,
-        avatar: pea.member.avatar_url ?? '',
-      },
-    });
+    setDmPea(pea);
   }
 
   if (membersQ.isLoading) return <Loading label="Finding your peas…" />;
@@ -162,6 +157,12 @@ function HomeInner() {
         onNudge={nudge}
         onOpenDirect={openDirectMessage}
         onExpandedChange={(_, height) => setMapBottom(height)}
+      />
+
+      <DirectMessageModal
+        visible={dmPea != null}
+        pea={dmPea}
+        onClose={() => setDmPea(null)}
       />
 
       <PodSelector

@@ -99,11 +99,13 @@ or the member sheet. Distances on cards are haversine metres from
 `@peapod/shared`, formatted as m/km (`Together` under 100 m). There is no
 geolib dependency.
 
-The current-user pill floats on the left just above **Your peas**. Drag that
-sheet up for detailed cards (distance, network, speed) or down for more map.
-Cards are sized so two full cards and half of a third are visible, which
-signals horizontal scrolling. Full usage and native background-location build
-instructions are in the repository `README.md`.
+The current-user pill floats on the left just above **Your peas**, separate
+from the top chrome. Drag that sheet up for locate/nudge actions or down for
+more map. Cards are sized so two full cards and half of a third are visible,
+with Battery / Net / Apart / Speed in one horizontal row. Tap another pea’s
+card to open a centered Direct Message modal. Full usage and native
+background-location build instructions are in the repository `README.md`.
+Postman copies for auth and pods: repository `API_DOCS.md`.
 
 ## Quality
 
