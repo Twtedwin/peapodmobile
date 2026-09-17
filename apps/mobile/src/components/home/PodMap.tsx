@@ -143,6 +143,10 @@ export const PodMap = forwardRef<PodMapHandle, Props>(function PodMap(
         userInterfaceStyle="dark"
         showsMyLocationButton={false}
         toolbarEnabled={false}
+        showsCompass={false}
+        showsScale={false}
+        showsIndoors={false}
+        showsTraffic={false}
         loadingEnabled
         loadingBackgroundColor="#0F1512"
         onMapReady={() => setMapReady(true)}

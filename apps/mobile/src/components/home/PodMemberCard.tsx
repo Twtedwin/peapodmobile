@@ -1,9 +1,9 @@
 /**
- * One pea card in the Home carousel.
+ * Member cards for the Home sheet.
  *
- * Identity is a horizontal row (avatar + name/place/time). Stats are always
- * a four-column row: Battery, Net, Apart, Speed — never stacked vertically.
- * Width is set by the parent so 2.5 cards are visible.
+ * Compact: horizontal carousel tile — avatar, name + location, battery at
+ * top-right. Expanded: full-width vertical card with identity row, actions,
+ * and a 4-column stats grid (labels above values).
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -13,11 +13,11 @@ import { Avatar } from '@/components/Avatar';
 import { radius, spacing, themeColors } from '@/theme';
 import { useSession } from '@/store/session';
 import type { MapPea } from './model';
-import { StatusMetrics } from './StatusMetrics';
+import { StatusMetrics, batteryIcon, batteryTint } from './StatusMetrics';
 
 interface Props {
   pea: MapPea;
-  width: number;
+  width?: number;
   detailed: boolean;
   onCenter: () => void;
   onNudge: () => void;
@@ -36,80 +36,117 @@ export function PodMemberCard({
 }: Props) {
   const colors = themeColors(useSession((state) => state.darkMode));
   const hasLocation = pea.latitude != null && pea.longitude != null;
+  const chargeColor = batteryTint(pea.battery, pea.charging, colors);
 
-  return (
-    <Pressable
-      onPress={onOpenDirect}
-      disabled={pea.isMe}
-      accessibilityLabel={pea.isMe ? pea.member.display_name : `Message ${pea.member.display_name}`}
-      style={[styles.card, { width, backgroundColor: colors.card, borderColor: colors.cardBorder }]}
-    >
-      <View style={styles.identity}>
+  if (!detailed) {
+    return (
+      <Pressable
+        onPress={onOpenDirect}
+        disabled={pea.isMe}
+        accessibilityLabel={pea.isMe ? pea.member.display_name : `Message ${pea.member.display_name}`}
+        style={[
+          styles.compact,
+          { width, backgroundColor: colors.card, borderColor: colors.cardBorder },
+        ]}
+      >
         <Avatar
           name={pea.member.display_name}
           id={pea.member.id}
           uri={pea.member.avatar_url}
           size={40}
         />
-        <View style={styles.identityText}>
+        <View style={styles.compactText}>
           <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }} numberOfLines={1}>
             {pea.isMe ? 'You' : pea.member.display_name}
           </Text>
           <Text style={{ color: colors.textMuted, fontSize: 11 }} numberOfLines={1}>
-            {pea.locationLabel}
-          </Text>
-          <Text style={{ color: colors.textMuted, fontSize: 11 }} numberOfLines={1}>
-            {pea.lastSeenLabel}
+            {pea.locationLabel} · {pea.lastSeenLabel}
           </Text>
         </View>
+        <View style={styles.compactBattery}>
+          <Ionicons name={batteryIcon(pea.battery, pea.charging)} size={14} color={chargeColor} />
+          <Text style={{ color: chargeColor, fontWeight: '800', fontSize: 11 }}>
+            {pea.battery == null ? 'N/A' : `${pea.battery}%`}
+          </Text>
+        </View>
+      </Pressable>
+    );
+  }
+
+  return (
+    <Pressable
+      onPress={onOpenDirect}
+      disabled={pea.isMe}
+      accessibilityLabel={pea.isMe ? pea.member.display_name : `Message ${pea.member.display_name}`}
+      style={[styles.expanded, { backgroundColor: colors.card, borderColor: colors.cardBorder }]}
+    >
+      <View style={styles.topRow}>
+        <Avatar
+          name={pea.member.display_name}
+          id={pea.member.id}
+          uri={pea.member.avatar_url}
+          size={44}
+        />
+        <View style={styles.compactText}>
+          <Text style={{ color: colors.text, fontWeight: '800', fontSize: 16 }} numberOfLines={1}>
+            {pea.isMe ? `${pea.member.display_name} (You)` : pea.member.display_name}
+          </Text>
+          <Text style={{ color: colors.textMuted, fontSize: 12 }} numberOfLines={1}>
+            {pea.locationLabel} · {pea.lastSeenLabel}
+          </Text>
+        </View>
+        <Pressable
+          onPress={onNudge}
+          disabled={pea.isMe || nudging}
+          accessibilityLabel={`Nudge ${pea.member.display_name}`}
+          style={[
+            styles.actionButton,
+            { backgroundColor: colors.cardBorder, opacity: pea.isMe || nudging ? 0.35 : 1 },
+          ]}
+        >
+          <Text style={{ fontSize: 16 }}>{nudging ? '…' : '🎉'}</Text>
+        </Pressable>
+        <Pressable
+          onPress={onCenter}
+          disabled={!hasLocation}
+          accessibilityLabel={`Locate ${pea.member.display_name}`}
+          style={[
+            styles.actionButton,
+            { backgroundColor: colors.accentDim, opacity: hasLocation ? 1 : 0.35 },
+          ]}
+        >
+          <Ionicons name="locate" size={18} color={colors.accent} />
+        </Pressable>
+        <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
       </View>
-
-      <StatusMetrics pea={pea} compact />
-
-      {detailed ? (
-        <View style={styles.actions}>
-          <Pressable
-            onPress={onNudge}
-            disabled={pea.isMe || nudging}
-            accessibilityLabel={`Nudge ${pea.member.display_name}`}
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.cardBorder, opacity: pea.isMe || nudging ? 0.35 : 1 },
-            ]}
-          >
-            <Text style={{ fontSize: 16 }}>{nudging ? '…' : '🎉'}</Text>
-          </Pressable>
-          <Pressable
-            onPress={onCenter}
-            disabled={!hasLocation}
-            accessibilityLabel={`Locate ${pea.member.display_name}`}
-            style={[
-              styles.actionButton,
-              { backgroundColor: colors.accentDim, opacity: hasLocation ? 1 : 0.35 },
-            ]}
-          >
-            <Ionicons name="locate" size={18} color={colors.accent} />
-          </Pressable>
-        </View>
-      ) : null}
+      <StatusMetrics pea={pea} />
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
+  compact: {
     borderRadius: radius.lg,
     borderWidth: 1,
     padding: spacing.sm,
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: spacing.sm,
+    minHeight: 64,
   },
-  identity: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
-  identityText: { flex: 1, minWidth: 0, gap: 1 },
-  actions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing.xs },
+  compactText: { flex: 1, minWidth: 0, gap: 2 },
+  compactBattery: { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start' },
+  expanded: {
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    padding: spacing.md,
+    gap: spacing.md,
+  },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   actionButton: {
-    width: 34,
-    height: 34,
-    borderRadius: 17,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },

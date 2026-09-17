@@ -1,8 +1,6 @@
 /**
- * Floating Home chrome: pod pill on the left, circular actions on the right.
- *
- * The pod pill reports its window coordinates so the membership dropdown can
- * sit directly beneath it instead of sliding up from the bottom.
+ * Floating Home chrome: pod pill + sharing count on the left, circular
+ * actions on the right. The two sides are separate overlays, not one bar.
  */
 
 import { useRef } from 'react';
@@ -12,7 +10,7 @@ import { Pressable, StyleSheet, Text, View, type View as RNView } from 'react-na
 import { Avatar } from '@/components/Avatar';
 import type { AuthUser } from '@/services/apiClient';
 import type { PodRow } from '@/hooks/usePodData';
-import { radius, spacing, themeColors } from '@/theme';
+import { radius, spacing, themeColors, type as typeScale } from '@/theme';
 import { useSession } from '@/store/session';
 
 export interface PodHeaderAnchor {
@@ -27,6 +25,7 @@ interface Props {
   user: AuthUser | null;
   topInset: number;
   unread: number;
+  sharingCount: number;
   onOpenPods: () => void;
   onOpenNotifications: () => void;
   onOpenProfile: () => void;
@@ -38,6 +37,7 @@ export function PodHeader({
   user,
   topInset,
   unread,
+  sharingCount,
   onOpenPods,
   onOpenNotifications,
   onOpenProfile,
@@ -55,23 +55,33 @@ export function PodHeader({
 
   return (
     <View style={[styles.row, { top: topInset + spacing.sm }]} pointerEvents="box-none">
-      <Pressable
-        ref={pillRef}
-        onPress={() => {
-          reportAnchor();
-          onOpenPods();
-        }}
-        onLayout={reportAnchor}
-        style={[styles.podPill, { backgroundColor: colors.overlay }]}
-        accessibilityRole="button"
-        accessibilityLabel="Switch pod"
-      >
-        <Text style={{ fontSize: 18 }}>{pod?.emoji ?? '🫛'}</Text>
-        <Text style={{ color: colors.cream, fontWeight: '800', maxWidth: 140 }} numberOfLines={1}>
-          {pod?.name ?? 'Peapod'}
+      <View style={styles.left}>
+        <Pressable
+          ref={pillRef}
+          onPress={() => {
+            reportAnchor();
+            onOpenPods();
+          }}
+          onLayout={reportAnchor}
+          style={[styles.podPill, { backgroundColor: colors.overlay }]}
+          accessibilityRole="button"
+          accessibilityLabel="Switch pod"
+        >
+          <View style={{ flexShrink: 1 }}>
+            <Text style={[typeScale.overline, { color: colors.textMuted, fontSize: 9 }]}>Peapod</Text>
+            <View style={styles.nameRow}>
+              <Text style={{ fontSize: 16 }}>{pod?.emoji ?? '🫛'}</Text>
+              <Text style={{ color: colors.cream, fontWeight: '800', flexShrink: 1 }} numberOfLines={1}>
+                {pod?.name ?? 'Peapod'}
+              </Text>
+              <Ionicons name="chevron-down" size={16} color={colors.cream} />
+            </View>
+          </View>
+        </Pressable>
+        <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 12, marginLeft: spacing.sm }}>
+          {sharingCount} peas sharing
         </Text>
-        <Ionicons name="chevron-down" size={16} color={colors.cream} />
-      </Pressable>
+      </View>
 
       <View style={styles.actions}>
         <Pressable
@@ -81,9 +91,9 @@ export function PodHeader({
         >
           <Ionicons name="notifications-outline" size={20} color={colors.cream} />
           {unread > 0 ? (
-            <View style={[styles.badge, { backgroundColor: colors.danger }]}>
+            <View style={[styles.badge, { backgroundColor: colors.accent }]}>
               <Text style={{ color: colors.accentText, fontSize: 9, fontWeight: '800' }}>
-                {Math.min(unread, 9)}
+                {unread > 9 ? '9+' : unread}
               </Text>
             </View>
           ) : null}
@@ -107,20 +117,20 @@ const styles = StyleSheet.create({
     left: spacing.md,
     right: spacing.md,
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
+  left: { flexShrink: 1, maxWidth: '62%', gap: spacing.xs },
   podPill: {
-    minHeight: 44,
-    maxWidth: '62%',
+    minHeight: 48,
     paddingHorizontal: spacing.md,
     paddingVertical: spacing.sm,
     borderRadius: radius.pill,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
   },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 1 },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   circle: {
     width: 40,
@@ -133,8 +143,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -3,
     right: -3,
-    width: 16,
+    minWidth: 16,
     height: 16,
+    paddingHorizontal: 3,
     borderRadius: 8,
     alignItems: 'center',
     justifyContent: 'center',

@@ -1,11 +1,8 @@
 /**
- * Two-snap member sheet with a horizontal card carousel.
+ * Two-snap member sheet.
  *
- * Cards always show a horizontal 4-column stats row (Battery, Net, Apart,
- * Speed). Card width is 2.5 visible slots so the strip reads as scrollable.
- *
- * The drag handle owns the pan responder so horizontal card scrolling stays
- * natural. No custom native bottom-sheet module is required.
+ * Collapsed: green online pill + Chat, then a 2.5-card horizontal carousel.
+ * Expanded: full-width vertical member cards with the 4-column stats grid.
  */
 
 /* eslint-disable react-hooks/immutability -- Reanimated SharedValue.value writes are the library's worklet API. */
@@ -38,9 +35,8 @@ import {
 } from './model';
 import { PodMemberCard } from './PodMemberCard';
 
-/** Compact snap height in density-independent pixels. Taller than the old
- * chip strip so location + battery fit without clipping. */
-export const COMPACT_SHEET_HEIGHT = 232;
+/** Compact snap height in density-independent pixels. */
+export const COMPACT_SHEET_HEIGHT = 176;
 
 interface Props {
   peas: MapPea[];
@@ -148,44 +144,64 @@ export function PodMemberSheet({
           </Pressable>
 
           <View style={styles.header}>
-            <View>
-              <Text style={{ color: colors.text, fontWeight: '800', fontSize: 18 }}>Your peas</Text>
-              <Text style={{ color: colors.accent, marginTop: 2 }}>{online} online</Text>
+            <View style={[styles.onlinePill, { backgroundColor: colors.accentDim }]}>
+              <View style={[styles.onlineDot, { backgroundColor: colors.accent }]} />
+              <Text style={{ color: colors.accent, fontWeight: '800' }}>{online} online</Text>
             </View>
             <Pressable
               onPress={onChat}
               style={[styles.chatButton, { backgroundColor: colors.accent }]}
               accessibilityRole="button"
             >
-              <Ionicons name="chatbubble-ellipses" size={17} color={colors.accentText} />
+              <Ionicons name="chatbubble-ellipses" size={16} color={colors.accentText} />
               <Text style={{ color: colors.accentText, fontWeight: '800' }}>Chat</Text>
             </Pressable>
           </View>
         </View>
       </GestureDetector>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={{
-          gap: MEMBER_CAROUSEL_GAP,
-          paddingBottom: spacing.md,
-          paddingRight: MEMBER_CAROUSEL_PADDING,
-        }}
-      >
-        {peas.map((pea) => (
-          <PodMemberCard
-            key={pea.member.id}
-            pea={pea}
-            width={cardWidth}
-            detailed={expanded}
-            onCenter={() => onCenter(pea)}
-            onNudge={() => void nudge(pea)}
-            onOpenDirect={() => onOpenDirect(pea)}
-            nudging={nudgingId === pea.member.id}
-          />
-        ))}
-      </ScrollView>
+      {expanded ? (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}
+          showsVerticalScrollIndicator={false}
+        >
+          {peas.map((pea) => (
+            <PodMemberCard
+              key={pea.member.id}
+              pea={pea}
+              detailed
+              onCenter={() => onCenter(pea)}
+              onNudge={() => void nudge(pea)}
+              onOpenDirect={() => onOpenDirect(pea)}
+              nudging={nudgingId === pea.member.id}
+            />
+          ))}
+        </ScrollView>
+      ) : (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={{
+            gap: MEMBER_CAROUSEL_GAP,
+            paddingBottom: spacing.md,
+            paddingRight: MEMBER_CAROUSEL_PADDING,
+          }}
+        >
+          {peas.map((pea) => (
+            <PodMemberCard
+              key={pea.member.id}
+              pea={pea}
+              width={cardWidth}
+              detailed={false}
+              onCenter={() => onCenter(pea)}
+              onNudge={() => void nudge(pea)}
+              onOpenDirect={() => onOpenDirect(pea)}
+              nudging={nudgingId === pea.member.id}
+            />
+          ))}
+        </ScrollView>
+      )}
     </Animated.View>
   );
 }
@@ -203,17 +219,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: MEMBER_CAROUSEL_PADDING,
     overflow: 'hidden',
   },
-  handleArea: { height: 28, alignItems: 'center', justifyContent: 'center' },
+  handleArea: { height: 24, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 44, height: 4, borderRadius: 2 },
   header: {
-    minHeight: 48,
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingBottom: spacing.sm,
   },
+  onlinePill: {
+    minHeight: 32,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.pill,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  onlineDot: { width: 8, height: 8, borderRadius: 4 },
   chatButton: {
-    minHeight: 40,
+    minHeight: 32,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
     flexDirection: 'row',

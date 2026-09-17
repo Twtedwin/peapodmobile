@@ -7,7 +7,7 @@
  */
 
 import { useState } from 'react';
-import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 
@@ -18,7 +18,7 @@ import { useSession } from '@/store/session';
 import { apiClient, unwrap } from '@/services/apiClient';
 import { radius, spacing, themeColors } from '@/theme';
 import { CenterModal } from './CenterModal';
-import { INVITE_CODE_PATTERN } from './model';
+import { INVITE_CODE_PATTERN, POD_CREATE_EMOJIS } from './model';
 import type { PodHeaderAnchor } from './PodHeader';
 
 interface Props {
@@ -34,6 +34,7 @@ export function PodSelector({ visible, pods, activePodId, anchor, onClose }: Pro
   const setCurrentPodId = useSession((state) => state.setCurrentPodId);
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
+  const [emoji, setEmoji] = useState<string>('🐾');
   const [code, setCode] = useState('');
   const [busy, setBusy] = useState<'create' | 'join' | null>(null);
   const [error, setError] = useState('');
@@ -50,6 +51,7 @@ export function PodSelector({ visible, pods, activePodId, anchor, onClose }: Pro
     await setCurrentPodId(id);
     setName('');
     setCode('');
+    setEmoji('🐾');
     setCreateOpen(false);
     setJoinOpen(false);
     onClose();
@@ -66,7 +68,7 @@ export function PodSelector({ visible, pods, activePodId, anchor, onClose }: Pro
     try {
       const raw = await apiClient.pods.create({
         name: trimmed,
-        emoji: '🫛',
+        emoji: emoji || '🐾',
         group_type: 'friends',
       });
       const pod = unwrap<PodRow>(raw, ['pod', 'data']);
@@ -157,11 +159,11 @@ export function PodSelector({ visible, pods, activePodId, anchor, onClose }: Pro
             </ScrollView>
             <View style={[styles.footer, { borderTopColor: colors.cardBorder }]}>
               <Pressable onPress={openCreate} style={styles.row} accessibilityRole="button">
-                <Ionicons name="add-circle-outline" size={20} color={colors.accent} />
+                <Text style={{ color: colors.accent, fontWeight: '800', fontSize: 18 }}>+</Text>
                 <Text style={{ color: colors.text, fontWeight: '700' }}>Create new pod</Text>
               </Pressable>
               <Pressable onPress={openJoin} style={styles.row} accessibilityRole="button">
-                <Ionicons name="key-outline" size={20} color={colors.accent} />
+                <Text style={{ fontSize: 16 }}>🔑</Text>
                 <Text style={{ color: colors.text, fontWeight: '700' }}>Join with a code</Text>
               </Pressable>
             </View>
@@ -171,7 +173,7 @@ export function PodSelector({ visible, pods, activePodId, anchor, onClose }: Pro
 
       <CenterModal
         visible={createOpen}
-        title="Create new pod"
+        title="Create a pod"
         onClose={() => {
           setCreateOpen(false);
           setError('');
@@ -179,29 +181,58 @@ export function PodSelector({ visible, pods, activePodId, anchor, onClose }: Pro
       >
         {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
         <Field label="Pod name" value={name} onChangeText={setName} placeholder="Weekend crew" autoFocus />
+        <Text style={{ color: colors.textMuted, fontWeight: '700', fontSize: 12 }}>Emoji</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.emojiRow}>
+          {POD_CREATE_EMOJIS.map((item) => {
+            const selected = item === emoji;
+            return (
+              <Pressable
+                key={item}
+                onPress={() => setEmoji(item)}
+                style={[
+                  styles.emojiChoice,
+                  {
+                    backgroundColor: selected ? colors.accentDim : colors.card,
+                    borderColor: selected ? colors.accent : colors.cardBorder,
+                  },
+                ]}
+              >
+                <Text style={{ fontSize: 22 }}>{item}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
         <Button label="Create pod" onPress={createPod} loading={busy === 'create'} disabled={busy !== null} />
       </CenterModal>
 
       <CenterModal
         visible={joinOpen}
-        title="Join with a code"
+        title="Join a pod"
         onClose={() => {
           setJoinOpen(false);
           setError('');
         }}
       >
+        <Text style={{ color: colors.textMuted }}>
+          Enter the 6-character invite from a Seed. Codes expire after 10 minutes.
+        </Text>
         {error ? <Text style={{ color: colors.danger }}>{error}</Text> : null}
-        <Field
-          label="6-character invite code"
+        <TextInput
           value={code}
           onChangeText={(value) => setCode(value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
           placeholder="ABC123"
+          placeholderTextColor={colors.textMuted}
           autoCapitalize="characters"
+          autoCorrect={false}
           autoFocus
+          maxLength={6}
+          style={[
+            styles.codeInput,
+            { color: colors.text, borderColor: colors.cardBorder, backgroundColor: colors.card },
+          ]}
         />
         <Button
           label="Join pod"
-          variant="secondary"
           onPress={joinPod}
           loading={busy === 'join'}
           disabled={busy !== null || !INVITE_CODE_PATTERN.test(code)}
@@ -228,4 +259,22 @@ const styles = StyleSheet.create({
     gap: spacing.sm,
   },
   footer: { borderTopWidth: StyleSheet.hairlineWidth },
+  emojiRow: { gap: spacing.sm, paddingVertical: spacing.xs },
+  emojiChoice: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  codeInput: {
+    minHeight: 56,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 10,
+  },
 });

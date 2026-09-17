@@ -13,6 +13,9 @@ import { spacing } from '@/theme';
 
 export const INVITE_CODE_PATTERN = /^[A-Z0-9]{6}$/;
 
+/** Emoji choices on the Create-pod modal. */
+export const POD_CREATE_EMOJIS = ['🫛', '🐾', '❤️', '🌱', '🏠', '🎉', '✈️', '👨‍👩‍👧‍👦'] as const;
+
 /** Horizontal inset of the member carousel, in density-independent pixels. */
 export const MEMBER_CAROUSEL_PADDING = spacing.lg;
 

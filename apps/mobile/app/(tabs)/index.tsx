@@ -11,7 +11,8 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
@@ -75,6 +76,7 @@ function HomeInner() {
   );
   const activePod = pods.find((pod) => pod.id === podId);
   const currentPea = peas.find((pea) => pea.isMe);
+  const sharingCount = peas.filter((pea) => pea.latitude != null && pea.longitude != null).length;
   const notifications = notificationsQ.data ?? [];
   const unread = notifications.filter((row) => row.is_read === false).length;
   useEffect(() => {
@@ -137,17 +139,32 @@ function HomeInner() {
         user={me}
         topInset={insets.top}
         unread={unread}
+        sharingCount={sharingCount}
         onOpenPods={() => setPodSelectorOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenProfile={() => router.push('/you')}
         onAnchorChange={setPodAnchor}
       />
 
+      <View
+        pointerEvents="box-none"
+        style={[styles.recenterStrip, { top: insets.top + 96, bottom: mapBottom + 72 }]}
+      >
+        <Pressable
+          onPress={() => mapRef.current?.centerOnGroup()}
+          accessibilityLabel="Frame all peas on the map"
+          style={[styles.recenterFab, { backgroundColor: colors.overlay }]}
+        >
+          <Ionicons name="locate" size={22} color={colors.cream} />
+        </Pressable>
+      </View>
+
       <CurrentUserPill
         pea={currentPea}
         myFix={myFix}
         bottom={mapBottom + spacing.sm}
         onCenterMe={() => mapRef.current?.centerOnMe()}
+        onOpenProfile={() => router.push('/you')}
       />
 
       <PodMemberSheet
@@ -222,6 +239,20 @@ export default function HomeTab() {
 
 const styles = StyleSheet.create({
   mapFrame: { position: 'absolute', top: 0, left: 0, right: 0 },
+  recenterStrip: {
+    position: 'absolute',
+    right: spacing.md,
+    zIndex: 17,
+    justifyContent: 'center',
+    alignItems: 'flex-end',
+  },
+  recenterFab: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   notification: {
     paddingVertical: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,

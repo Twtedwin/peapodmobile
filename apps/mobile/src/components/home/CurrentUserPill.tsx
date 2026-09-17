@@ -1,8 +1,5 @@
 /**
  * Floating identity chip for the signed-in pea, parked above the member sheet.
- *
- * INPUTS  : current MapPea, whether a GPS fix exists, bottom offset in px
- * OUTPUTS : overlay pill with locate-on-me
  */
 
 import { Ionicons } from '@expo/vector-icons';
@@ -19,16 +16,14 @@ interface Props {
   myFix: LocalFix | null;
   bottom: number;
   onCenterMe: () => void;
+  onOpenProfile: () => void;
 }
 
-export function CurrentUserPill({ pea, myFix, bottom, onCenterMe }: Props) {
+export function CurrentUserPill({ pea, myFix, bottom, onCenterMe, onOpenProfile }: Props) {
   const colors = themeColors(useSession((state) => state.darkMode));
 
   return (
-    <View
-      style={[styles.wrap, { bottom, backgroundColor: colors.overlay }]}
-      pointerEvents="box-none"
-    >
+    <View style={[styles.wrap, { bottom, backgroundColor: colors.overlay }]}>
       <Avatar
         name={pea?.member.display_name ?? 'You'}
         id={pea?.member.id}
@@ -51,7 +46,10 @@ export function CurrentUserPill({ pea, myFix, bottom, onCenterMe }: Props) {
         accessibilityLabel="Center on me"
         style={[styles.locate, { backgroundColor: colors.accentDim, opacity: myFix ? 1 : 0.4 }]}
       >
-        <Ionicons name="locate" size={20} color={colors.accent} />
+        <Ionicons name="locate" size={18} color={colors.accent} />
+      </Pressable>
+      <Pressable onPress={onOpenProfile} hitSlop={8} accessibilityLabel="Open profile">
+        <Ionicons name="chevron-forward" size={18} color={colors.cream} />
       </Pressable>
     </View>
   );
@@ -62,7 +60,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     zIndex: 18,
     left: spacing.md,
-    maxWidth: '58%',
+    maxWidth: '70%',
     minHeight: 56,
     padding: spacing.sm,
     borderRadius: radius.lg,
@@ -72,9 +70,9 @@ const styles = StyleSheet.create({
   },
   text: { flexShrink: 1, minWidth: 76 },
   locate: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
     alignItems: 'center',
     justifyContent: 'center',
   },

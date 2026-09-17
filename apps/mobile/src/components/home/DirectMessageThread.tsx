@@ -99,9 +99,21 @@ export function DirectMessageThread({ pea, onClose, onRefreshHistory }: Props) {
       </View>
 
       <View style={[styles.statusBanner, { backgroundColor: colors.accentDim }]}>
-        <View style={[styles.statusDot, { backgroundColor: pea.online ? colors.accent : colors.textMuted }]} />
+        <Ionicons
+          name={
+            activity.label === 'Walking'
+              ? 'walk'
+              : activity.label === 'Cycling'
+                ? 'bicycle'
+                : activity.label === 'Driving'
+                  ? 'car'
+                  : 'pause-circle'
+          }
+          size={18}
+          color={colors.accent}
+        />
         <Text style={{ color: colors.text, fontWeight: '700', flex: 1 }} numberOfLines={2}>
-          {activity.label} · {pea.locationLabel} · {pea.lastSeenLabel}
+          {activity.label} · at {pea.locationLabel} since {pea.lastSeenLabel}
         </Text>
       </View>
 
@@ -160,7 +172,7 @@ export function DirectMessageThread({ pea, onClose, onRefreshHistory }: Props) {
         <TextInput
           value={text}
           onChangeText={setText}
-          placeholder={`Message ${name}`}
+          placeholder="Message"
           placeholderTextColor={colors.textMuted}
           multiline
           maxLength={2000}
@@ -180,7 +192,7 @@ export function DirectMessageThread({ pea, onClose, onRefreshHistory }: Props) {
           ]}
         >
           <Ionicons
-            name="arrow-up"
+            name="send"
             size={22}
             color={valid && !sending ? colors.accentText : colors.textMuted}
           />
@@ -213,7 +225,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: spacing.sm,
   },
-  statusDot: { width: 8, height: 8, borderRadius: 4 },
   metricsCard: {
     marginTop: spacing.sm,
     paddingVertical: spacing.md,
