@@ -2,8 +2,9 @@
  * MODULE: apps/mobile/app/(tabs)/index
  *
  * PURPOSE
- *   Live, pod-scoped social map. The selected pod controls every marker,
- *   presence card, chat subscription, and location upload on this screen.
+ *   Live, pod-scoped social map. Floating chrome (pod pill, notifications,
+ *   profile) sits over a native map that fits every pea on load. The member
+ *   sheet is a 2.5-card carousel; distances use shared haversine.
  *
  * INPUTS  : pod/member/presence/place APIs, realtime events, device location
  * OUTPUTS : Home tab map, draggable member sheet, chat and notifications
@@ -17,12 +18,13 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { apiClient, subscribeRealtime } from '@/services/apiClient';
 import { ErrorRetry } from '@/components/ErrorRetry';
+import { CurrentUserPill } from '@/components/home/CurrentUserPill';
 import { PodChatSheet } from '@/components/home/PodChatSheet';
 import {
   COMPACT_SHEET_HEIGHT,
   PodMemberSheet,
 } from '@/components/home/PodMemberSheet';
-import { PodHeader } from '@/components/home/PodHeader';
+import { PodHeader, type PodHeaderAnchor } from '@/components/home/PodHeader';
 import { PodMap, type PodMapHandle } from '@/components/home/PodMap';
 import { PodSelector } from '@/components/home/PodSelector';
 import { buildMapPeas, type MapPea } from '@/components/home/model';
@@ -56,6 +58,7 @@ function HomeInner() {
   const mapRef = useRef<PodMapHandle>(null);
 
   const [podSelectorOpen, setPodSelectorOpen] = useState(false);
+  const [podAnchor, setPodAnchor] = useState<PodHeaderAnchor | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mapBottom, setMapBottom] = useState(COMPACT_SHEET_HEIGHT);
@@ -69,6 +72,7 @@ function HomeInner() {
     [members, presence, places, me?.id, myFix],
   );
   const activePod = pods.find((pod) => pod.id === podId);
+  const currentPea = peas.find((pea) => pea.isMe);
   const notifications = notificationsQ.data ?? [];
   const unread = notifications.filter((row) => row.is_read === false).length;
   useEffect(() => {
@@ -128,6 +132,7 @@ function HomeInner() {
           ref={mapRef}
           peas={peas}
           myFix={myFix}
+          podId={podId}
           onSelectMember={centerOn}
         />
       </View>
@@ -140,6 +145,14 @@ function HomeInner() {
         onOpenPods={() => setPodSelectorOpen(true)}
         onOpenNotifications={() => setNotificationsOpen(true)}
         onOpenProfile={() => router.push('/you')}
+        onAnchorChange={setPodAnchor}
+      />
+
+      <CurrentUserPill
+        pea={currentPea}
+        myFix={myFix}
+        bottom={mapBottom + spacing.sm}
+        onCenterMe={() => mapRef.current?.centerOnMe()}
       />
 
       <PodMemberSheet
@@ -155,6 +168,7 @@ function HomeInner() {
         visible={podSelectorOpen}
         pods={pods}
         activePodId={podId}
+        anchor={podAnchor}
         onClose={() => setPodSelectorOpen(false)}
       />
 

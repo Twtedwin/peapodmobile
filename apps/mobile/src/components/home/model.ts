@@ -5,12 +5,33 @@
  * member cards deterministic and straightforward to test.
  */
 
-import { formatDistance, haversine, lastSeenLabel, nearestPlace } from '@peapod/shared';
+import { formatDistance, haversine, lastSeenLabel as formatLastSeen, nearestPlace } from '@peapod/shared';
 
 import type { LocalFix } from '@/hooks/useLocationPings';
 import type { MemberRow, PlaceRow, PresenceRow } from '@/hooks/usePodData';
+import { spacing } from '@/theme';
 
 export const INVITE_CODE_PATTERN = /^[A-Z0-9]{6}$/;
+
+/** Horizontal inset of the member carousel, in density-independent pixels. */
+export const MEMBER_CAROUSEL_PADDING = spacing.lg;
+
+/** Gap between carousel cards, in density-independent pixels. */
+export const MEMBER_CAROUSEL_GAP = spacing.sm;
+
+/**
+ * Edge padding for fitToCoordinates, in density-independent pixels.
+ *
+ * Top clears the floating pod pill and circular actions. Bottom clears the
+ * current-user pill that sits just above the member sheet. Left/right keep
+ * avatar markers from clipping the screen edge.
+ */
+export const MAP_FIT_PADDING = {
+  top: 72,
+  right: 48,
+  bottom: 88,
+  left: 48,
+} as const;
 
 export interface MapPea {
   member: MemberRow;
@@ -25,6 +46,7 @@ export interface MapPea {
   connection?: string;
   distanceLabel: string;
   locationLabel: string;
+  lastSeenLabel: string;
   isMe: boolean;
 }
 
@@ -58,11 +80,20 @@ export function buildMapPeas(
       distanceLabel = formatDistance(haversine(myFix.latitude, myFix.longitude, latitude, longitude));
     }
 
-    const seenLabel = lastSeen
-      ? lastSeenLabel(Math.max(0, now - new Date(lastSeen).getTime()))
+    const lastSeenText = lastSeen
+      ? formatLastSeen(Math.max(0, now - new Date(lastSeen).getTime()))
       : isMe && myFix
-        ? 'now'
+        ? 'Just now'
         : 'No location yet';
+
+    const locationLabel = atPlace
+      ? `At ${atPlace.place.name}`
+      : isMe && myFix
+        ? 'Live location'
+        : latitude != null && longitude != null
+          ? 'Sharing location'
+          : 'No location yet';
+
     return {
       member,
       latitude,
@@ -75,11 +106,8 @@ export function buildMapPeas(
       charging: Boolean(row?.is_charging),
       connection: row?.connection_type,
       distanceLabel,
-      locationLabel: atPlace
-        ? `At ${atPlace.place.name} · ${seenLabel}`
-        : isMe && myFix
-          ? `Live location · ${seenLabel}`
-          : seenLabel,
+      locationLabel,
+      lastSeenLabel: lastSeenText,
       isMe,
     };
   });
@@ -91,4 +119,15 @@ export function coordinateBounds(peas: MapPea[]): { latitude: number; longitude:
       ? []
       : [{ latitude: pea.latitude, longitude: pea.longitude }],
   );
+}
+
+/**
+ * Width of one member card so two full cards and half of a third are visible.
+ *
+ * Visible strip: card + gap + card + gap + 0.5 card = 2.5 cards + 2 gaps.
+ * Units: density-independent pixels.
+ */
+export function memberCarouselCardWidth(windowWidth: number): number {
+  const horizontalPadding = MEMBER_CAROUSEL_PADDING * 2;
+  return (windowWidth - horizontalPadding - 2 * MEMBER_CAROUSEL_GAP) / 2.5;
 }

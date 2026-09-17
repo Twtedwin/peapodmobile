@@ -159,7 +159,7 @@ export default function DirectMessageScreen() {
       <View style={[styles.statusBanner, { backgroundColor: colors.accentDim }]}>
         <View style={[styles.statusDot, { backgroundColor: target.online ? colors.accent : colors.textMuted }]} />
         <Text style={{ color: colors.text, fontWeight: '700' }} numberOfLines={1}>
-          {activity.label} · {target.locationLabel}
+          {activity.label} · {target.locationLabel} · {target.lastSeenLabel}
         </Text>
       </View>
 

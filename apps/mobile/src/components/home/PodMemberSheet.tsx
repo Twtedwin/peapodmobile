@@ -1,8 +1,12 @@
 /**
- * Draggable, two-snap member sheet linked to the map viewport.
+ * Two-snap member sheet with a horizontal card carousel.
  *
- * The drag handle owns the pan responder so vertical member-list scrolling
- * remains natural. No custom native bottom-sheet module is required.
+ * Compact cards show name, avatar, place, last ping, and battery. Expanded
+ * cards add distance (haversine), network, and speed. Card width is 2.5
+ * visible slots so the strip reads as scrollable.
+ *
+ * The drag handle owns the pan responder so horizontal card scrolling stays
+ * natural. No custom native bottom-sheet module is required.
  */
 
 /* eslint-disable react-hooks/immutability -- Reanimated SharedValue.value writes are the library's worklet API. */
@@ -25,13 +29,19 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 
-import { Avatar } from '@/components/Avatar';
 import { radius, spacing, themeColors } from '@/theme';
 import { useSession } from '@/store/session';
-import type { MapPea } from './model';
+import {
+  MEMBER_CAROUSEL_GAP,
+  MEMBER_CAROUSEL_PADDING,
+  memberCarouselCardWidth,
+  type MapPea,
+} from './model';
 import { PodMemberCard } from './PodMemberCard';
 
-export const COMPACT_SHEET_HEIGHT = 154;
+/** Compact snap height in density-independent pixels. Taller than the old
+ * chip strip so location + battery fit without clipping. */
+export const COMPACT_SHEET_HEIGHT = 248;
 
 interface Props {
   peas: MapPea[];
@@ -51,13 +61,14 @@ export function PodMemberSheet({
   onExpandedChange,
 }: Props) {
   const colors = themeColors(useSession((state) => state.darkMode));
-  const { height: windowHeight } = useWindowDimensions();
-  const expandedHeight = Math.min(560, Math.max(360, windowHeight * 0.58));
+  const { height: windowHeight, width: windowWidth } = useWindowDimensions();
+  const expandedHeight = Math.min(560, Math.max(380, windowHeight * 0.58));
   const sheetHeight = useSharedValue(COMPACT_SHEET_HEIGHT);
   const dragStartHeight = useSharedValue(COMPACT_SHEET_HEIGHT);
   const [expanded, setExpanded] = useState(false);
   const [nudgingId, setNudgingId] = useState<string | null>(null);
   const online = peas.filter((pea) => pea.online).length;
+  const cardWidth = memberCarouselCardWidth(windowWidth);
 
   async function nudge(pea: MapPea) {
     setNudgingId(pea.member.id);
@@ -154,55 +165,28 @@ export function PodMemberSheet({
         </View>
       </GestureDetector>
 
-      {expanded ? (
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}
-          showsVerticalScrollIndicator={false}
-        >
-          {peas.map((pea) => (
-            <PodMemberCard
-              key={pea.member.id}
-              pea={pea}
-              onCenter={() => onCenter(pea)}
-              onNudge={() => void nudge(pea)}
-              onOpenDirect={() => onOpenDirect(pea)}
-              nudging={nudgingId === pea.member.id}
-            />
-          ))}
-        </ScrollView>
-      ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ gap: spacing.sm, paddingBottom: spacing.md }}
-        >
-          {peas.map((pea) => (
-            <Pressable
-              key={pea.member.id}
-              onPress={() => onOpenDirect(pea)}
-              disabled={pea.isMe}
-              accessibilityLabel={`Message ${pea.member.display_name}`}
-              style={[styles.summary, { backgroundColor: colors.card }]}
-            >
-              <Avatar
-                name={pea.member.display_name}
-                id={pea.member.id}
-                uri={pea.member.avatar_url}
-                size={32}
-              />
-              <View style={{ maxWidth: 90 }}>
-                <Text style={{ color: colors.text, fontWeight: '700' }} numberOfLines={1}>
-                  {pea.isMe ? 'You' : pea.member.display_name}
-                </Text>
-                <Text style={{ color: pea.online ? colors.accent : colors.textMuted, fontSize: 11 }}>
-                  {pea.online ? 'Online' : pea.distanceLabel}
-                </Text>
-              </View>
-            </Pressable>
-          ))}
-        </ScrollView>
-      )}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{
+          gap: MEMBER_CAROUSEL_GAP,
+          paddingBottom: spacing.md,
+          paddingRight: MEMBER_CAROUSEL_PADDING,
+        }}
+      >
+        {peas.map((pea) => (
+          <PodMemberCard
+            key={pea.member.id}
+            pea={pea}
+            width={cardWidth}
+            detailed={expanded}
+            onCenter={() => onCenter(pea)}
+            onNudge={() => void nudge(pea)}
+            onOpenDirect={() => onOpenDirect(pea)}
+            nudging={nudgingId === pea.member.id}
+          />
+        ))}
+      </ScrollView>
     </Animated.View>
   );
 }
@@ -217,13 +201,13 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: radius.xl,
     borderTopRightRadius: radius.xl,
     borderWidth: 1,
-    paddingHorizontal: spacing.lg,
+    paddingHorizontal: MEMBER_CAROUSEL_PADDING,
     overflow: 'hidden',
   },
   handleArea: { height: 28, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 44, height: 4, borderRadius: 2 },
   header: {
-    minHeight: 55,
+    minHeight: 48,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -233,14 +217,6 @@ const styles = StyleSheet.create({
     minHeight: 40,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  summary: {
-    height: 52,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.sm,
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,

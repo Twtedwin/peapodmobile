@@ -268,6 +268,11 @@ After changing an `EXPO_PUBLIC_*` value, restart Metro with
 
 ```text
 Home
+  ├─ Floating chrome: pod pill (dropdown), notification + profile circles
+  ├─ Map camera: fitToCoordinates for every pea (incl. current user) on load
+  │    and when the set of located members changes — not on every GPS tick
+  ├─ Member sheet: 2.5-card horizontal carousel (compact vs detailed cards)
+  ├─ Distance: packages/shared haversine + formatDistance (metres → m/km)
   ├─ React Query: pods, members, presence, places, chat, notifications
   ├─ WebSocket /realtime: invalidates the affected pod cache
   ├─ expo-location: foreground watcher or native background task
@@ -284,11 +289,18 @@ Primary modules:
 - `apps/mobile/src/models/api.ts` defines transport-safe User, Pod, Message,
   Presence, PhoneStatus, Place, and LocationData interfaces. Screens never
   import Drizzle/database row types.
-- `apps/mobile/app/(tabs)/index.tsx` composes the map, sheets, chat, and realtime updates.
-- `apps/mobile/src/components/home/PodHeader.tsx` owns safe-area-aware header controls.
-- `PodSelector.tsx` lists authorized memberships and implements create/join.
-- `PodMap.tsx` owns native markers and imperative camera controls.
-- `PodMemberSheet.tsx` and `PodMemberCard.tsx` implement compact/expanded status UI.
+- `apps/mobile/app/(tabs)/index.tsx` composes the map, floating chrome, member
+  carousel, chat, and realtime updates.
+- `apps/mobile/src/components/home/PodHeader.tsx` is a floating pod pill plus
+  two circular actions (notifications, profile), not a full-width bar.
+- `PodSelector.tsx` is a dropdown anchored under that pill. Create/join open
+  `CenterModal.tsx` (center overlay), not a bottom sheet.
+- `PodMap.tsx` owns native markers and fits the camera to all sharing peas
+  with edge padding so pins clear the chrome and the current-user pill.
+- `CurrentUserPill.tsx` sits on the left just above the member sheet.
+- `PodMemberSheet.tsx` and `PodMemberCard.tsx` implement the 2.5-card carousel.
+  Compact cards show name, avatar, place, last ping, and battery. Expanded
+  cards add distance, network, and speed.
 - `app/direct-message/[userId].tsx` is a pod-independent private conversation
   whose messages use `pod_id = null`; presence remains an optional pod-derived
   enhancement to its pinned status card.
@@ -298,7 +310,9 @@ Primary modules:
 - `services/api/src/routes/pods.ts` enforces membership and derives presence.
 - `services/api/src/db/schema.ts` is the domain schema; auth tables remain in
   `services/security/app/models.py`.
-- `packages/shared/src/algorithms/geo.ts` owns distance and saved-place calculations.
+- `packages/shared/src/algorithms/geo.ts` owns haversine (metres) and
+  `formatDistance` (`Together`, `420 m`, `1.2 km`, `4040 km`). The app does
+  not add a third-party geolib.
 
 ## Product rules this codebase preserves
 

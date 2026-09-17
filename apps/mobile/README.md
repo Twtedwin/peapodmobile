@@ -88,10 +88,22 @@ The login screen helper text is: **Create an account, then create or join a pod.
 
 ## Home map
 
-Tap the pod name to switch, create, or join a six-character invite. Drag
-**Your peas** up for detailed live cards and down for more map. Crosshairs
-center on this device, one member, or the full group. Full usage and native
-background-location build instructions are in the repository `README.md`.
+The map fills the Home tab. A floating pod pill (top left) opens a dropdown
+of memberships; **Create new pod** and **Join with a code** are center
+modals, not a bottom sheet. Notification and profile are separate circular
+buttons at the top right.
+
+On load (and when the set of located members changes) the camera fits every
+pea in the pod, including you, with padding so pins are not under the chrome
+or the member sheet. Distances on cards are haversine metres from
+`@peapod/shared`, formatted as m/km (`Together` under 100 m). There is no
+geolib dependency.
+
+The current-user pill floats on the left just above **Your peas**. Drag that
+sheet up for detailed cards (distance, network, speed) or down for more map.
+Cards are sized so two full cards and half of a third are visible, which
+signals horizontal scrolling. Full usage and native background-location build
+instructions are in the repository `README.md`.
 
 ## Quality
 

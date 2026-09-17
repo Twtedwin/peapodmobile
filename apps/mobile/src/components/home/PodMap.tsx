@@ -4,19 +4,23 @@
  * Android always uses Google Maps (`PROVIDER_GOOGLE`) and needs a Maps SDK
  * key in the native manifest. iOS omits the provider so Apple Maps is used
  * unless a Google iOS key is later added.
+ *
+ * Camera: after the native map is ready, and when the set of members who have
+ * a fix changes (pod switch or someone starts/stops sharing), the camera fits
+ * every pea including the current user. Continuous GPS ticks do not re-fit,
+ * so a pan is not stolen.
  */
 
-import { forwardRef, useImperativeHandle, useRef } from 'react';
-import { Ionicons } from '@expo/vector-icons';
-import { Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
+import { Platform, StyleSheet, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE, type MapStyleElement } from 'react-native-maps';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Avatar } from '@/components/Avatar';
 import type { LocalFix } from '@/hooks/useLocationPings';
-import { radius, spacing, themeColors } from '@/theme';
+import { themeColors } from '@/theme';
 import { useSession } from '@/store/session';
-import type { MapPea } from './model';
-import { coordinateBounds } from './model';
+import { MAP_FIT_PADDING, coordinateBounds, type MapPea } from './model';
 
 const FALLBACK_REGION = {
   latitude: 1.3521,
@@ -48,17 +52,36 @@ export interface PodMapHandle {
 interface Props {
   peas: MapPea[];
   myFix: LocalFix | null;
+  podId: string | null;
   onSelectMember: (pea: MapPea) => void;
 }
 
 export const PodMap = forwardRef<PodMapHandle, Props>(function PodMap(
-  { peas, myFix, onSelectMember },
+  { peas, myFix, podId, onSelectMember },
   forwardedRef,
 ) {
   const mapRef = useRef<MapView>(null);
   const colors = themeColors(useSession((state) => state.darkMode));
+  const insets = useSafeAreaInsets();
   const coordinates = coordinateBounds(peas);
-  const currentPea = peas.find((pea) => pea.isMe);
+  const [mapReady, setMapReady] = useState(false);
+
+  const sharingKey = useMemo(
+    () =>
+      peas
+        .filter((pea) => pea.latitude != null && pea.longitude != null)
+        .map((pea) => pea.member.id)
+        .sort()
+        .join(','),
+    [peas],
+  );
+
+  const edgePadding = {
+    top: insets.top + MAP_FIT_PADDING.top,
+    right: MAP_FIT_PADDING.right,
+    bottom: MAP_FIT_PADDING.bottom,
+    left: MAP_FIT_PADDING.left,
+  };
 
   function centerOnCoordinate(latitude: number, longitude: number) {
     mapRef.current?.animateCamera(
@@ -79,16 +102,27 @@ export const PodMap = forwardRef<PodMapHandle, Props>(function PodMap(
   function centerOnGroup() {
     if (coordinates.length === 0) return;
     if (coordinates.length === 1) {
-      centerOnCoordinate(coordinates[0]!.latitude, coordinates[0]!.longitude);
+      mapRef.current?.animateCamera(
+        { center: coordinates[0]!, zoom: 14 },
+        { duration: 450 },
+      );
       return;
     }
     mapRef.current?.fitToCoordinates(coordinates, {
-      edgePadding: { top: 130, right: 60, bottom: 100, left: 60 },
+      edgePadding,
       animated: true,
     });
   }
 
   useImperativeHandle(forwardedRef, () => ({ centerOnUser, centerOnMe, centerOnGroup }));
+
+  useEffect(() => {
+    if (!mapReady) return;
+    centerOnGroup();
+    // Why: re-fitting on every GPS sample steals pans. podId + sharingKey
+    // change only when the pod or the set of located members changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- see comment
+  }, [mapReady, podId, sharingKey]);
 
   const firstCoordinate = myFix
     ? { latitude: myFix.latitude, longitude: myFix.longitude }
@@ -111,6 +145,7 @@ export const PodMap = forwardRef<PodMapHandle, Props>(function PodMap(
         toolbarEnabled={false}
         loadingEnabled
         loadingBackgroundColor="#0F1512"
+        onMapReady={() => setMapReady(true)}
       >
         {peas.map((pea) => {
           if (pea.latitude == null || pea.longitude == null) return null;
@@ -135,48 +170,6 @@ export const PodMap = forwardRef<PodMapHandle, Props>(function PodMap(
           );
         })}
       </MapView>
-
-      <View style={[styles.shareCount, { backgroundColor: colors.overlay }]}>
-        <Text style={{ color: colors.cream, fontWeight: '700', fontSize: 12 }}>
-          {coordinates.length} peas sharing
-        </Text>
-      </View>
-
-      <View style={styles.mapControls}>
-        <View style={[styles.currentUserPill, { backgroundColor: colors.overlay }]}>
-          <Avatar
-            name={currentPea?.member.display_name ?? 'You'}
-            id={currentPea?.member.id}
-            uri={currentPea?.member.avatar_url}
-            size={36}
-          />
-          <View style={styles.currentUserText}>
-            <Text style={{ color: colors.cream, fontWeight: '800' }} numberOfLines={1}>
-              {currentPea?.member.display_name ?? 'You'}
-            </Text>
-            <Text style={{ color: colors.textMuted, fontSize: 10 }} numberOfLines={1}>
-              {currentPea?.locationLabel ?? 'Waiting for your location…'}
-            </Text>
-          </View>
-          <Pressable
-            onPress={centerOnMe}
-            disabled={!myFix}
-            accessibilityLabel="Center on me"
-            style={[styles.myLocationButton, { backgroundColor: colors.accentDim, opacity: myFix ? 1 : 0.4 }]}
-          >
-            <Ionicons name="locate" size={20} color={colors.accent} />
-          </Pressable>
-        </View>
-
-        <Pressable
-          onPress={centerOnGroup}
-          disabled={coordinates.length === 0}
-          accessibilityLabel="Center on group"
-          style={[styles.groupControl, { backgroundColor: colors.overlay }]}
-        >
-          <Ionicons name="scan" size={22} color={colors.accent} />
-        </Pressable>
-      </View>
     </View>
   );
 });
@@ -197,49 +190,5 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     borderWidth: 2,
     borderColor: '#0F1512',
-  },
-  mapControls: {
-    position: 'absolute',
-    left: spacing.md,
-    right: spacing.md,
-    bottom: spacing.md,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.sm,
-  },
-  currentUserPill: {
-    minHeight: 56,
-    maxWidth: '68%',
-    padding: spacing.sm,
-    borderRadius: radius.lg,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.sm,
-  },
-  currentUserText: { flex: 1, minWidth: 76 },
-  myLocationButton: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  shareCount: {
-    position: 'absolute',
-    alignSelf: 'center',
-    bottom: 76,
-    minHeight: 34,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.pill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  groupControl: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });
