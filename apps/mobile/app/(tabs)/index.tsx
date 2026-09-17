@@ -4,7 +4,7 @@
  * PURPOSE
  *   Live, pod-scoped social map. Floating chrome (pod pill, notifications,
  *   profile) sits over a native map that fits every pea on load. The member
- *   sheet is a 2.5-card carousel; distances use shared haversine.
+ *   sheet is a wide horizontal carousel; distances use shared haversine.
  *
  * INPUTS  : pod/member/presence/place APIs, realtime events, device location
  * OUTPUTS : Home tab map, draggable member sheet, chat and notifications

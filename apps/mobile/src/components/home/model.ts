@@ -124,13 +124,16 @@ export function coordinateBounds(peas: MapPea[]): { latitude: number; longitude:
   );
 }
 
+/** Compact carousel card height in density-independent pixels. */
+export const COMPACT_CARD_HEIGHT = 80;
+
 /**
- * Width of one member card so two full cards and half of a third are visible.
+ * Width of one collapsed member card.
  *
- * Visible strip: card + gap + card + gap + 0.5 card = 2.5 cards + 2 gaps.
+ * 60% of the window leaves one full wide row plus a large peek of the next
+ * card, which is how the horizontal list signals that it scrolls.
  * Units: density-independent pixels.
  */
 export function memberCarouselCardWidth(windowWidth: number): number {
-  const horizontalPadding = MEMBER_CAROUSEL_PADDING * 2;
-  return (windowWidth - horizontalPadding - 2 * MEMBER_CAROUSEL_GAP) / 2.5;
+  return windowWidth * 0.6;
 }

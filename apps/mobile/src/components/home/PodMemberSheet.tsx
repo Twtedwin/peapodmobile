@@ -1,7 +1,7 @@
 /**
  * Two-snap member sheet.
  *
- * Collapsed: green online pill + Chat, then a 2.5-card horizontal carousel.
+ * Collapsed: green online pill + Chat, then a wide horizontal card carousel.
  * Expanded: full-width vertical member cards with the 4-column stats grid.
  */
 
@@ -28,6 +28,7 @@ import Animated, {
 import { radius, spacing, themeColors } from '@/theme';
 import { useSession } from '@/store/session';
 import {
+  COMPACT_CARD_HEIGHT,
   MEMBER_CAROUSEL_GAP,
   MEMBER_CAROUSEL_PADDING,
   memberCarouselCardWidth,
@@ -35,8 +36,8 @@ import {
 } from './model';
 import { PodMemberCard } from './PodMemberCard';
 
-/** Compact snap height in density-independent pixels. */
-export const COMPACT_SHEET_HEIGHT = 176;
+/** Compact snap height: handle + header + one 80px row + bottom padding. */
+export const COMPACT_SHEET_HEIGHT = 24 + 52 + COMPACT_CARD_HEIGHT + spacing.md;
 
 interface Props {
   peas: MapPea[];
@@ -183,6 +184,7 @@ export function PodMemberSheet({
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={{
+            alignItems: 'flex-start',
             gap: MEMBER_CAROUSEL_GAP,
             paddingBottom: spacing.md,
             paddingRight: MEMBER_CAROUSEL_PADDING,

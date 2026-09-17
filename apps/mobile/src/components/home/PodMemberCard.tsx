@@ -1,8 +1,8 @@
 /**
  * Member cards for the Home sheet.
  *
- * Compact: horizontal carousel tile — avatar, name + location, battery at
- * top-right. Expanded: full-width vertical card with identity row, actions,
+ * Compact: short wide row — avatar, ellipsized name + location, battery at
+ * the right. Expanded: full-width vertical card with identity row, actions,
  * and a 4-column stats grid (labels above values).
  */
 
@@ -12,7 +12,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Avatar } from '@/components/Avatar';
 import { radius, spacing, themeColors } from '@/theme';
 import { useSession } from '@/store/session';
-import type { MapPea } from './model';
+import { COMPACT_CARD_HEIGHT, type MapPea } from './model';
 import { StatusMetrics, batteryIcon, batteryTint } from './StatusMetrics';
 
 interface Props {
@@ -49,17 +49,27 @@ export function PodMemberCard({
           { width, backgroundColor: colors.card, borderColor: colors.cardBorder },
         ]}
       >
-        <Avatar
-          name={pea.member.display_name}
-          id={pea.member.id}
-          uri={pea.member.avatar_url}
-          size={40}
-        />
-        <View style={styles.compactText}>
-          <Text style={{ color: colors.text, fontWeight: '800', fontSize: 14 }} numberOfLines={1}>
+        <View style={styles.compactAvatar}>
+          <Avatar
+            name={pea.member.display_name}
+            id={pea.member.id}
+            uri={pea.member.avatar_url}
+            size={40}
+          />
+        </View>
+        <View style={styles.compactBody}>
+          <Text
+            style={{ color: colors.text, fontWeight: '800', fontSize: 14 }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {pea.isMe ? 'You' : pea.member.display_name}
           </Text>
-          <Text style={{ color: colors.textMuted, fontSize: 11 }} numberOfLines={1}>
+          <Text
+            style={{ color: colors.textMuted, fontSize: 11 }}
+            numberOfLines={1}
+            ellipsizeMode="tail"
+          >
             {pea.locationLabel} · {pea.lastSeenLabel}
           </Text>
         </View>
@@ -126,16 +136,31 @@ export function PodMemberCard({
 
 const styles = StyleSheet.create({
   compact: {
+    height: COMPACT_CARD_HEIGHT,
     borderRadius: radius.lg,
     borderWidth: 1,
-    padding: spacing.sm,
+    padding: spacing.md,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: spacing.sm,
-    minHeight: 64,
+    overflow: 'hidden',
+  },
+  compactAvatar: { width: 40, height: 40, flexShrink: 0 },
+  compactBody: {
+    flex: 1,
+    minWidth: 0,
+    marginLeft: spacing.md,
+    marginRight: spacing.sm,
+    flexDirection: 'column',
+    justifyContent: 'center',
   },
   compactText: { flex: 1, minWidth: 0, gap: 2 },
-  compactBattery: { flexDirection: 'row', alignItems: 'center', gap: 3, alignSelf: 'flex-start' },
+  compactBattery: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    alignSelf: 'flex-start',
+    flexShrink: 0,
+  },
   expanded: {
     borderRadius: radius.lg,
     borderWidth: 1,

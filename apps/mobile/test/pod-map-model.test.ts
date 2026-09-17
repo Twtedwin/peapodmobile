@@ -74,15 +74,12 @@ describe('pod map view model', () => {
     expect(peas[1]?.locationLabel).toBe('Sharing location');
   });
 
-  it('sizes carousel cards so two full cards and half of a third are visible', () => {
+  it('sizes collapsed carousel cards at 60% of the window so the next card peeks', () => {
     const windowWidth = 390;
     const width = memberCarouselCardWidth(windowWidth);
-    expect(width).toBe(
-      (windowWidth - MEMBER_CAROUSEL_PADDING * 2 - 2 * MEMBER_CAROUSEL_GAP) / 2.5,
-    );
-    expect(2.5 * width + 2 * MEMBER_CAROUSEL_GAP + MEMBER_CAROUSEL_PADDING * 2).toBe(
-      windowWidth,
-    );
+    expect(width).toBe(windowWidth * 0.6);
+    expect(width).toBeGreaterThan(windowWidth / 2);
+    expect(width + MEMBER_CAROUSEL_GAP).toBeLessThan(windowWidth - MEMBER_CAROUSEL_PADDING * 2);
   });
 
   it('keeps Expo Go foreground-only and native builds background-capable', () => {
