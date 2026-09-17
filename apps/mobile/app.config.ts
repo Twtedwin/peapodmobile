@@ -32,7 +32,8 @@
 
 import type { ExpoConfig } from 'expo/config';
 import { loadProjectEnv } from '@expo/env';
-import { dirname, relative, resolve } from 'node:path';
+import { existsSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const mobileDirectory = dirname(fileURLToPath(import.meta.url));
@@ -47,8 +48,23 @@ function firstEnv(...names: string[]): string | undefined {
   return undefined;
 }
 
-const asset = (fileName: string): string =>
-  `./${relative(repoRoot, resolve(mobileDirectory, 'assets', fileName)).replaceAll('\\', '/')}`;
+/**
+ * Icon and splash paths must be absolute.
+ *
+ * `path.resolve(projectRoot, icon)` ignores projectRoot when `icon` is
+ * already absolute, so the same config works from the repo root (`npx expo
+ * start`) and from `apps/mobile` (EAS prebuild). A cwd-relative path such as
+ * `./apps/mobile/assets/icon.png` is evaluated against whichever folder Expo
+ * currently treats as the project root, which is how EAS was opening a
+ * missing `apps/mobile/apps/mobile/assets/icon.png`.
+ */
+const asset = (fileName: string): string => {
+  const absolute = resolve(mobileDirectory, 'assets', fileName).replaceAll('\\', '/');
+  if (!existsSync(absolute)) {
+    throw new Error(`Missing Expo asset ${fileName} at ${absolute}`);
+  }
+  return absolute;
+};
 
 const icon = asset('icon.png');
 const adaptiveIcon = asset('adaptive-icon.png');
@@ -93,10 +109,13 @@ const config: ExpoConfig = {
   // SDK 57 / React Native 0.86 always use the New Architecture, so the former
   // `newArchEnabled` opt-in is no longer a valid manifest field.
 
-  // The splash screen is configured through the expo-splash-screen plugin
-  // below rather than a top-level `splash` key, which SDK 54 supersedes.
   // Placeholder PNGs live in apps/mobile/assets; replace them with branded
   // artwork when it exists. A missing path is a hard prebuild failure.
+  splash: {
+    image: splashImage,
+    backgroundColor: '#0F1512',
+    resizeMode: 'contain',
+  },
 
   ios: {
     bundleIdentifier: 'app.peapod.mobile',
@@ -136,6 +155,7 @@ const config: ExpoConfig = {
     // last one, and a hand-maintained number gets that wrong eventually.
     adaptiveIcon: {
       foregroundImage: adaptiveIcon,
+      backgroundImage: splashImage,
       backgroundColor: '#0F1512',
     },
     permissions: [
