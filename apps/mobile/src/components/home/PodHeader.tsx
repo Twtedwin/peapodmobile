@@ -67,18 +67,19 @@ export function PodHeader({
           accessibilityRole="button"
           accessibilityLabel="Switch pod"
         >
-          <View style={{ flexShrink: 1 }}>
-            <Text style={[typeScale.overline, { color: colors.textMuted, fontSize: 9 }]}>Peapod</Text>
-            <View style={styles.nameRow}>
-              <Text style={{ fontSize: 16 }}>{pod?.emoji ?? '🫛'}</Text>
-              <Text style={{ color: colors.cream, fontWeight: '800', flexShrink: 1 }} numberOfLines={1}>
-                {pod?.name ?? 'Peapod'}
-              </Text>
-              <Ionicons name="chevron-down" size={16} color={colors.cream} />
-            </View>
+          <Text style={[typeScale.overline, styles.brand, { color: colors.textMuted }]}>Peapod</Text>
+          <View style={styles.nameRow}>
+            <Text style={{ fontSize: 16 }}>{pod?.emoji ?? '🫛'}</Text>
+            <Text style={{ color: colors.cream, fontWeight: '800', flexShrink: 1 }} numberOfLines={1}>
+              {pod?.name ?? 'Peapod'}
+            </Text>
+            <Ionicons name="chevron-down" size={16} color={colors.cream} />
           </View>
         </Pressable>
-        <Text style={{ color: colors.accent, fontWeight: '700', fontSize: 12, marginLeft: spacing.sm }}>
+        <Text
+          style={{ color: colors.accent, fontWeight: '700', fontSize: 12 }}
+          numberOfLines={1}
+        >
           {sharingCount} peas sharing
         </Text>
       </View>
@@ -121,16 +122,18 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: spacing.sm,
   },
-  left: { flexShrink: 1, maxWidth: '62%', gap: spacing.xs },
+  left: { flexShrink: 1, maxWidth: '62%', gap: spacing.xs, alignItems: 'flex-start' },
   podPill: {
-    minHeight: 48,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingTop: 5,
+    paddingBottom: 8,
     borderRadius: radius.pill,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: 'column',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
   },
-  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs, marginTop: 1 },
+  brand: { fontSize: 9, lineHeight: 11 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.xs },
   actions: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   circle: {
     width: 40,

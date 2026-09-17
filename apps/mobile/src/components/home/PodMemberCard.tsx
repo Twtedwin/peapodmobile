@@ -54,7 +54,7 @@ export function PodMemberCard({
             name={pea.member.display_name}
             id={pea.member.id}
             uri={pea.member.avatar_url}
-            size={40}
+            size={36}
           />
         </View>
         <View style={styles.compactBody}>
@@ -139,17 +139,18 @@ const styles = StyleSheet.create({
     height: COMPACT_CARD_HEIGHT,
     borderRadius: radius.lg,
     borderWidth: 1,
-    padding: spacing.md,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
     flexDirection: 'row',
     alignItems: 'center',
     overflow: 'hidden',
   },
-  compactAvatar: { width: 40, height: 40, flexShrink: 0 },
+  compactAvatar: { width: 36, height: 36, flexShrink: 0 },
   compactBody: {
     flex: 1,
     minWidth: 0,
-    marginLeft: spacing.md,
-    marginRight: spacing.sm,
+    marginLeft: 10,
+    marginRight: 8,
     flexDirection: 'column',
     justifyContent: 'center',
   },

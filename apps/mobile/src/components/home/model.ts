@@ -125,7 +125,7 @@ export function coordinateBounds(peas: MapPea[]): { latitude: number; longitude:
 }
 
 /** Compact carousel card height in density-independent pixels. */
-export const COMPACT_CARD_HEIGHT = 80;
+export const COMPACT_CARD_HEIGHT = 62;
 
 /**
  * Width of one collapsed member card.

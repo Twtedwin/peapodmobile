@@ -146,23 +146,21 @@ function HomeInner() {
         onAnchorChange={setPodAnchor}
       />
 
-      <View
-        pointerEvents="box-none"
-        style={[styles.recenterStrip, { top: insets.top + 96, bottom: mapBottom + 72 }]}
+      <Pressable
+        onPress={() => mapRef.current?.centerOnGroup()}
+        accessibilityLabel="Frame all peas on the map"
+        style={[
+          styles.recenterFab,
+          { bottom: mapBottom + 20, backgroundColor: colors.overlay },
+        ]}
       >
-        <Pressable
-          onPress={() => mapRef.current?.centerOnGroup()}
-          accessibilityLabel="Frame all peas on the map"
-          style={[styles.recenterFab, { backgroundColor: colors.overlay }]}
-        >
-          <Ionicons name="locate" size={22} color={colors.cream} />
-        </Pressable>
-      </View>
+        <Ionicons name="locate" size={22} color={colors.cream} />
+      </Pressable>
 
       <CurrentUserPill
         pea={currentPea}
         myFix={myFix}
-        bottom={mapBottom + spacing.sm}
+        bottom={mapBottom + 20}
         onCenterMe={() => mapRef.current?.centerOnMe()}
         onOpenProfile={() => router.push('/you')}
       />
@@ -239,14 +237,10 @@ export default function HomeTab() {
 
 const styles = StyleSheet.create({
   mapFrame: { position: 'absolute', top: 0, left: 0, right: 0 },
-  recenterStrip: {
-    position: 'absolute',
-    right: spacing.md,
-    zIndex: 17,
-    justifyContent: 'center',
-    alignItems: 'flex-end',
-  },
   recenterFab: {
+    position: 'absolute',
+    zIndex: 17,
+    right: spacing.lg,
     width: 48,
     height: 48,
     borderRadius: 24,

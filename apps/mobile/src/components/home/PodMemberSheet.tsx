@@ -36,8 +36,12 @@ import {
 } from './model';
 import { PodMemberCard } from './PodMemberCard';
 
-/** Compact snap height: handle + header + one 80px row + bottom padding. */
-export const COMPACT_SHEET_HEIGHT = 24 + 52 + COMPACT_CARD_HEIGHT + spacing.md;
+/**
+ * Compact snap height in density-independent pixels.
+ * Handle + online/chat row + one 62px card + bottom inset, so the sheet
+ * hugs the carousel instead of covering the map.
+ */
+export const COMPACT_SHEET_HEIGHT = 16 + 32 + COMPACT_CARD_HEIGHT + spacing.sm;
 
 interface Props {
   peas: MapPea[];
@@ -186,7 +190,7 @@ export function PodMemberSheet({
           contentContainerStyle={{
             alignItems: 'flex-start',
             gap: MEMBER_CAROUSEL_GAP,
-            paddingBottom: spacing.md,
+            paddingBottom: spacing.sm,
             paddingRight: MEMBER_CAROUSEL_PADDING,
           }}
         >
@@ -221,17 +225,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: MEMBER_CAROUSEL_PADDING,
     overflow: 'hidden',
   },
-  handleArea: { height: 24, alignItems: 'center', justifyContent: 'center' },
+  handleArea: { height: 16, alignItems: 'center', justifyContent: 'center' },
   handle: { width: 44, height: 4, borderRadius: 2 },
   header: {
-    minHeight: 44,
+    minHeight: 32,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingBottom: spacing.sm,
+    paddingBottom: 4,
   },
   onlinePill: {
-    minHeight: 32,
+    minHeight: 28,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
     flexDirection: 'row',
@@ -240,7 +244,7 @@ const styles = StyleSheet.create({
   },
   onlineDot: { width: 8, height: 8, borderRadius: 4 },
   chatButton: {
-    minHeight: 32,
+    minHeight: 28,
     paddingHorizontal: spacing.md,
     borderRadius: radius.pill,
     flexDirection: 'row',
